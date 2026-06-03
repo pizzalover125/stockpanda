@@ -1,0 +1,215 @@
+<!doctype html>
+<html>
+  <head>
+    <title>stockpanda</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .highlight {
+        background: radial-gradient(
+            circle,
+            rgba(0, 0, 0, 0.25) 30%,
+            transparent 30%
+          )
+          center/60% no-repeat;
+      }
+
+      .selected {
+        background: rgba(255, 215, 0, 0.5) !important;
+      }
+
+      #promo-modal {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: #fff;
+        border: 1px solid #999;
+        padding: 12px;
+        z-index: 999;
+      }
+
+      #promo-modal img {
+        width: 60px;
+        height: 60px;
+        cursor: pointer;
+        margin: 4px;
+      }
+
+      #board {
+        width: 40vw;
+        border: 2px solid black;
+      }
+    </style>
+  </head>
+  <body>
+    <div style="text-align: center">
+      <div id="board"></div>
+      <p id="status"></p>
+    </div>
+
+    <div id="promo-modal"></div>
+
+    <script>
+      // variables / constants
+      const PIECE_URL =
+        "https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png";
+      let cboard,
+        selected = null,
+        pendingPromo = null,
+        legalCache = {};
+
+      // clear highlights from board
+      function clearHighlights() {
+        $("#board .square-55d63").removeClass("highlight selected");
+      }
+
+      // apply move to backend and update board
+      async function applyMove(uci, promotion = "q") {
+        const res = await fetch("/move", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ move: uci, promotion }),
+        });
+        const d = await res.json();
+        if (!d.error) {
+          cboard.position(d.fen.split(" ")[0], false);
+          $("#status").text(d.over ? "Game over!" : "");
+          legalCache = {};
+        }
+      }
+
+      // check legal moves for a square
+      async function getLegal(square) {
+        if (legalCache[square]) return legalCache[square];
+        const res = await fetch("/legal?square=" + square);
+        const { moves } = await res.json();
+        legalCache[square] = moves;
+        return moves;
+      }
+
+      // check if move is a promotion
+      function isPromoMove(from, to) {
+        const piece = cboard.position()[from];
+        return (
+          (piece === "wP" && to[1] === "8") || (piece === "bP" && to[1] === "1")
+        );
+      }
+
+      // show promotion modal
+      function showPromoModal(uci, color) {
+        pendingPromo = uci;
+        const modal = $("#promo-modal").find("img").remove().end();
+        for (const p of ["Q", "R", "B", "N"])
+          $("<img>")
+            .attr("src", PIECE_URL.replace("{piece}", color + p))
+            .on("click", async () => {
+              $("#promo-modal").hide();
+              await applyMove(pendingPromo, p.toLowerCase());
+              pendingPromo = null;
+            })
+            .appendTo(modal);
+        modal.show();
+      }
+
+      // handle move application
+      async function handleMove(from, to) {
+        clearHighlights();
+        selected = null;
+        if (isPromoMove(from, to)) {
+          showPromoModal(from + to, cboard.position()[from][0]);
+        } else {
+          await applyMove(from + to);
+        }
+      }
+
+      // click handler for squares
+      async function squareClick(square) {
+        if (selected === square) {
+          clearHighlights();
+          selected = null;
+          return;
+        }
+
+        if (selected) {
+          const moves = await getLegal(selected);
+          const from = selected;
+          clearHighlights();
+          selected = null;
+          if (moves.includes(square)) await handleMove(from, square);
+          return;
+        }
+
+        const moves = await getLegal(square);
+        if (!moves.length) return;
+        selected = square;
+        $(`#board .square-${square}`).addClass("selected");
+        moves.forEach((sq) => $(`#board .square-${sq}`).addClass("highlight"));
+      }
+
+      $(document).on(
+        "click",
+        "#board .square-55d63, #board .square-55d63 img",
+        function (e) {
+          e.stopPropagation();
+          const sq = $(this).closest(".square-55d63").attr("data-square");
+          if (sq) squareClick(sq);
+        },
+      );
+
+      // initialize chessboard
+      cboard = Chessboard("board", {
+        draggable: true,
+        position: "start",
+        pieceTheme: PIECE_URL,
+        onDragStart: async (source, piece) => {
+          if (piece[0] !== "w") return false;
+          clearHighlights();
+          selected = null;
+          const moves = await getLegal(source);
+          $(`#board .square-${source}`).addClass("selected");
+          moves.forEach((sq) =>
+            $(`#board .square-${sq}`).addClass("highlight"),
+          );
+          return true;
+        },
+        onDrop: (source, target) => {
+          clearHighlights();
+          if (target === "offboard" || source === target) return "snapback";
+          getLegal(source).then((moves) => {
+            if (!moves.includes(target)) return;
+            handleMove(source, target);
+          });
+          return "snapback";
+        },
+      });
+
+      // reset game
+      async function doReset() {
+        await fetch("/reset", { method: "POST" });
+        cboard.position("start", false);
+        clearHighlights();
+        selected = null;
+        pendingPromo = null;
+        legalCache = {};
+        $("#status").text("");
+      }
+
+      doReset();
+    </script>
+  </body>
+</html>
