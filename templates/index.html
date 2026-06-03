@@ -65,35 +65,52 @@
     <div id="promo-modal"></div>
 
     <script>
-      // variables / constants
       const PIECE_URL =
         "https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png";
       let cboard,
         selected = null,
         pendingPromo = null,
-        legalCache = {};
+        legalCache = {},
+        thinking = false;
 
-      // clear highlights from board
       function clearHighlights() {
         $("#board .square-55d63").removeClass("highlight selected");
       }
 
-      // apply move to backend and update board
+      // apply move to backend; render player move immediately, then trigger engine
       async function applyMove(uci, promotion = "q") {
+        if (thinking) return;
+
         const res = await fetch("/move", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ move: uci, promotion }),
         });
         const d = await res.json();
-        if (!d.error) {
-          cboard.position(d.fen.split(" ")[0], false);
-          $("#status").text(d.over ? "Game over!" : "");
-          legalCache = {};
+        if (d.error) return;
+
+        // render the player's move right away
+        cboard.position(d.fen.split(" ")[0], false);
+        legalCache = {};
+
+        if (d.over) {
+          $("#status").text("Game over!");
+          return;
         }
+
+        // now ask the engine for its reply
+        thinking = true;
+        $("#status").text("thinking...");
+        const res2 = await fetch("/engine_move", { method: "POST" });
+        const d2 = await res2.json();
+        thinking = false;
+
+        cboard.position(d2.fen.split(" ")[0], false);
+        $("#status").text(d2.over ? "Game over!" : "");
+        legalCache = {};
       }
 
-      // check legal moves for a square
+      // see if move if legal
       async function getLegal(square) {
         if (legalCache[square]) return legalCache[square];
         const res = await fetch("/legal?square=" + square);
@@ -102,7 +119,7 @@
         return moves;
       }
 
-      // check if move is a promotion
+      // is this promotion?
       function isPromoMove(from, to) {
         const piece = cboard.position()[from];
         return (
@@ -110,7 +127,7 @@
         );
       }
 
-      // show promotion modal
+      // show promotion choice modal
       function showPromoModal(uci, color) {
         pendingPromo = uci;
         const modal = $("#promo-modal").find("img").remove().end();
@@ -126,7 +143,7 @@
         modal.show();
       }
 
-      // handle move application
+      // handle a move: if promotion, show modal; else just apply
       async function handleMove(from, to) {
         clearHighlights();
         selected = null;
@@ -137,8 +154,9 @@
         }
       }
 
-      // click handler for squares
+      // handle click on a square
       async function squareClick(square) {
+        if (thinking) return;
         if (selected === square) {
           clearHighlights();
           selected = null;
@@ -161,6 +179,7 @@
         moves.forEach((sq) => $(`#board .square-${sq}`).addClass("highlight"));
       }
 
+      // delegate click handler to board container
       $(document).on(
         "click",
         "#board .square-55d63, #board .square-55d63 img",
@@ -171,13 +190,13 @@
         },
       );
 
-      // initialize chessboard
+      // initialize chessboard with drag-and-drop handlers
       cboard = Chessboard("board", {
         draggable: true,
         position: "start",
         pieceTheme: PIECE_URL,
         onDragStart: async (source, piece) => {
-          if (piece[0] !== "w") return false;
+          if (piece[0] !== "w" || thinking) return false;
           clearHighlights();
           selected = null;
           const moves = await getLegal(source);
@@ -206,9 +225,11 @@
         selected = null;
         pendingPromo = null;
         legalCache = {};
+        thinking = false;
         $("#status").text("");
       }
 
+      // reset on load
       doReset();
     </script>
   </body>
