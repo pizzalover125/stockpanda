@@ -55,5 +55,3 @@ def reset():
     board.reset(); return jsonify(fen=board.fen(), over=False)
 
 if __name__ == "__main__": app.run(debug=True)
-
-# what is quintessence search?

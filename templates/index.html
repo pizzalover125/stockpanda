@@ -100,7 +100,6 @@
 
         // now ask the engine for its reply
         thinking = true;
-        $("#status").text("thinking...");
         const res2 = await fetch("/engine_move", { method: "POST" });
         const d2 = await res2.json();
         thinking = false;

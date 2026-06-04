@@ -1,6 +1,7 @@
 import chess #type: ignore
 
-DEPTH = 4
+DEPTH = 3
+MATE_SCORE = 1000000  # large enough to always outweigh any material eval
 
 # piece values
 # note: most engines use 330 for bishops, but i prefer 350 to make them more important
@@ -98,9 +99,20 @@ def evaluate(board):
             score -= value + _pst_score(piece_type, sq, chess.BLACK)
     return score
 
-# basic minimax
-def minimax(board, depth, maximizing):
-    if depth == 0 or board.is_game_over():
+# minimax with alpha-beta pruning
+def minimax(board, depth, alpha, beta, maximizing):
+    # checkmate: the side to move has lost. score from white's perspective,
+    # offset by depth so faster mates rank higher (and slower losses rank less bad)
+    if board.is_checkmate():
+        if board.turn == chess.WHITE:
+            return -(MATE_SCORE + depth), None  # white is mated -> bad for white
+        else:
+            return MATE_SCORE + depth, None     # black is mated -> good for white
+    # any other game-over state (stalemate, insufficient material, repetition, 75-move) is a draw
+    if board.is_game_over():
+        return 0, None
+    # depth exhausted on a non-terminal position: fall back to static eval
+    if depth == 0:
         return evaluate(board), None
 
     best_move = None
@@ -108,22 +120,28 @@ def minimax(board, depth, maximizing):
         best_score = float("-inf")
         for move in board.legal_moves:
             board.push(move)
-            score, _ = minimax(board, depth - 1, False)
+            score, _ = minimax(board, depth - 1, alpha, beta, False)
             board.pop()
             if score > best_score:
                 best_score, best_move = score, move
+            alpha = max(alpha, best_score)
+            if alpha >= beta:
+                break  # beta cutoff: minimizer above won't allow this line
     else:
         best_score = float("inf")
         for move in board.legal_moves:
             board.push(move)
-            score, _ = minimax(board, depth - 1, True)
+            score, _ = minimax(board, depth - 1, alpha, beta, True)
             board.pop()
             if score < best_score:
                 best_score, best_move = score, move
+            beta = min(beta, best_score)
+            if beta <= alpha:
+                break  # alpha cutoff: maximizer above won't allow this line
 
     return best_score, best_move
 
 # get best move for current position using minimax at specified depth
 def get_engine_move(board, depth=DEPTH):
-    _, move = minimax(board, depth, board.turn == chess.WHITE)
+    _, move = minimax(board, depth, float("-inf"), float("inf"), board.turn == chess.WHITE)
     return move
