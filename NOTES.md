@@ -49,4 +49,4 @@
 
 ## credits
 
-learned a lot from https://www.youtube.com/watch?v=U4ogK0MIzqk and https://www.chessprogramming.org/Main_Page.
+learned a lot from <https://www.youtube.com/watch?v=U4ogK0MIzqk> and <https://www.chessprogramming.org/Main_Page>.
