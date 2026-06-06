@@ -13,6 +13,7 @@ stockfish is the best chess engine in the world. my last name is panda. i combin
 - iterative deepening
 - transposition tables
 - move order
+- quiessence search
 
 ## planned features
 
@@ -22,6 +23,7 @@ stockfish is the best chess engine in the world. my last name is panda. i combin
 - custom piece / board design
 - lichess integration
 - cli tool
+- custom logo
 
 ## technical info
 

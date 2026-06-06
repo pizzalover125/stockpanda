@@ -106,7 +106,6 @@ def evaluate(board):
 class SearchTimeout(Exception):
     pass
 
-
 # order moves for more cutoffs: tt move first, then captures (mvv-lva), then promotions
 def _order_moves(board, tt_move):
     def move_score(move):
@@ -125,6 +124,56 @@ def _order_moves(board, tt_move):
 
     return sorted(board.legal_moves, key=move_score, reverse=True)
 
+# order just the captures by mvv-lva (used inside quiescence; no tt move here)
+def _order_captures(board):
+    def cap_score(move):
+        victim = board.piece_at(move.to_square)
+        attacker = board.piece_at(move.from_square)
+        victim_val = PIECE_VALUES[victim.piece_type] if victim else PIECE_VALUES[chess.PAWN]  # en passant victim is a pawn
+        attacker_val = PIECE_VALUES[attacker.piece_type]
+        return victim_val * 10 - attacker_val
+    return sorted(board.generate_legal_captures(), key=cap_score, reverse=True)
+
+# quiescence search
+def quiescence(board, alpha, beta, maximizing, deadline):
+    if time.time() >= deadline:        # respect the time budget
+        raise SearchTimeout
+
+    stand_pat = evaluate(board)        # score if the side to move just declines to capture
+
+    if maximizing:
+        if stand_pat >= beta:          # already good enough; minimizer above avoids this line
+            return stand_pat
+        if stand_pat > alpha:
+            alpha = stand_pat
+        best = stand_pat               # capturing is optional, so eval is a floor
+        for move in _order_captures(board):
+            board.push(move)
+            score = quiescence(board, alpha, beta, False, deadline)
+            board.pop()
+            if score > best:
+                best = score
+            alpha = max(alpha, best)
+            if alpha >= beta:          # beta cutoff
+                break
+    else:
+        if stand_pat <= alpha:         # already bad enough; maximizer above avoids this line
+            return stand_pat
+        if stand_pat < beta:
+            beta = stand_pat
+        best = stand_pat               # eval is a ceiling for the minimizer
+        for move in _order_captures(board):
+            board.push(move)
+            score = quiescence(board, alpha, beta, True, deadline)
+            board.pop()
+            if score < best:
+                best = score
+            beta = min(beta, best)
+            if beta <= alpha:          # alpha cutoff
+                break
+
+    return best
+
 # minimax with alpha-beta pruning
 def minimax(board, depth, alpha, beta, maximizing, deadline, tt):
     # bail out if we're over the time budget
@@ -141,14 +190,14 @@ def minimax(board, depth, alpha, beta, maximizing, deadline, tt):
     # any other game-over state (stalemate, insufficient material, repetition, 75-move) is a draw
     if board.is_game_over():
         return 0, None
-    # depth exhausted on a non-terminal position: fall back to static eval
+    # depth exhausted on a non-terminal position: resolve captures with quiescence instead of a raw eval 
     if depth == 0:
-        return evaluate(board), None
+        return quiescence(board, alpha, beta, maximizing, deadline), None 
 
     key = chess.polyglot.zobrist_hash(board)
     tt_move = tt.get(key)  # from a previous iteration, or none
     best_move = None
-    if maximizing:
+    if maximizing:  
         best_score = float("-inf")
         for move in _order_moves(board, tt_move):
             board.push(move)
