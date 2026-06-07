@@ -1,3 +1,4 @@
+#engine.py
 import chess #type: ignore
 import chess.polyglot #type: ignore
 import time
@@ -5,6 +6,33 @@ import time
 MAX_DEPTH = 5         # max search depth 
 TIME_LIMIT = 4.0      # seconds per move
 MATE_SCORE = 1000000  # large enough to always outweigh any material eval
+
+BOOK_PATH = "pc2500.bin"   # set to None to disable
+BOOK_MAX_PLY = 20          # stop using the book after this many plies (half-moves)
+
+TT_EXACT = 0
+TT_LOWER = 1
+TT_UPPER = 2
+
+class TTEntry:
+    __slots__ = ('depth', 'score', 'flag', 'best_move')
+    def __init__(self, depth, score, flag, best_move):
+        self.depth = depth
+        self.score = score
+        self.flag = flag
+        self.best_move = best_move
+
+class TranspositionTable:
+    def __init__(self):
+        self.table = {}
+
+    def get(self, key):
+        return self.table.get(key)
+
+    def set(self, key, depth, score, flag, best_move):
+        existing = self.table.get(key)
+        if existing is None or depth >= existing.depth:
+            self.table[key] = TTEntry(depth, score, flag, best_move)
 
 # piece values
 # note: most engines use 330 for bishops, but i prefer 350 to make them more important
@@ -174,7 +202,7 @@ def quiescence(board, alpha, beta, maximizing, deadline):
 
     return best
 
-# minimax with alpha-beta pruning
+# minimax with alpha-beta pruning and transposition table
 def minimax(board, depth, alpha, beta, maximizing, deadline, tt):
     # bail out if we're over the time budget
     if time.time() >= deadline:
@@ -192,12 +220,34 @@ def minimax(board, depth, alpha, beta, maximizing, deadline, tt):
         return 0, None
     # depth exhausted on a non-terminal position: resolve captures with quiescence instead of a raw eval 
     if depth == 0:
-        return quiescence(board, alpha, beta, maximizing, deadline), None 
+        return quiescence(board, alpha, beta, maximizing, deadline), None
 
     key = chess.polyglot.zobrist_hash(board)
-    tt_move = tt.get(key)  # from a previous iteration, or none
+    tt_entry = tt.get(key)
+    tt_move = tt_entry.best_move if tt_entry else None  # from a previous iteration, or none
+
+    # tt cutoff: if we've already searched this position >= this depth, use the stored result
+    if tt_entry and tt_entry.depth >= depth:
+        score = tt_entry.score if maximizing else -tt_entry.score
+        if tt_entry.flag == TT_EXACT:
+            return score, tt_entry.best_move
+        if tt_entry.flag == TT_LOWER:
+            if maximizing:
+                alpha = max(alpha, score)
+            else:
+                beta = min(beta, score)
+        elif tt_entry.flag == TT_UPPER:
+            if maximizing:
+                beta = min(beta, score)
+            else:
+                alpha = max(alpha, score)
+        if alpha >= beta:
+            return score, tt_entry.best_move
+
+    original_alpha = alpha
     best_move = None
-    if maximizing:  
+
+    if maximizing:
         best_score = float("-inf")
         for move in _order_moves(board, tt_move):
             board.push(move)
@@ -207,7 +257,7 @@ def minimax(board, depth, alpha, beta, maximizing, deadline, tt):
                 best_score, best_move = score, move
             alpha = max(alpha, best_score)
             if alpha >= beta:
-                break  # beta cutoff: minimizer above won't allow this line 
+                break  # beta cutoff: minimizer above won't allow this line
     else:
         best_score = float("inf")
         for move in _order_moves(board, tt_move):
@@ -220,16 +270,51 @@ def minimax(board, depth, alpha, beta, maximizing, deadline, tt):
             if beta <= alpha:
                 break  # alpha cutoff: maximizer above won't allow this line
 
-    # remember the best move so the next iteration tries it first
-    if best_move is not None:
-        tt[key] = best_move
+    # determine tt flag and store
+    if maximizing:
+        tt_score = best_score
+        if best_score >= beta:
+            flag = TT_LOWER  # fail-high: score is a lower bound
+        elif best_score <= original_alpha:
+            flag = TT_UPPER  # fail-low: score is an upper bound
+        else:
+            flag = TT_EXACT  # exact score
+    else:
+        tt_score = -best_score
+        if best_score <= original_alpha:
+            flag = TT_LOWER  # fail-high from minimizer's pov
+        elif best_score >= beta:
+            flag = TT_UPPER  # fail-low from minimizer's pov
+        else:
+            flag = TT_EXACT
+
+    tt.set(key, depth, tt_score, flag, best_move)
 
     return best_score, best_move
 
+# look up current position in the polyglot opening book; returns None if out of book
+def get_book_move(board):
+    if BOOK_PATH is None or len(board.move_stack) >= BOOK_MAX_PLY:
+        return None
+    try:
+        with chess.polyglot.open_reader(BOOK_PATH) as reader:
+            try:
+                entry = reader.weighted_choice(board)
+                return entry.move
+            except IndexError:
+                return None  # position not in book
+    except FileNotFoundError:
+        return None  # book file not found; fall through to engine search
+
 # iterative-deepening: search increasing depths until time runs out
 def get_engine_move(board, max_depth=MAX_DEPTH, time_limit=TIME_LIMIT):
-    deadline = time.time() + time_limit 
-    tt = {}  # fresh per move, shared across iterations
+    book_move = get_book_move(board)
+    if book_move is not None:
+        print(f"[book] {book_move}")
+        return book_move
+
+    deadline = time.time() + time_limit
+    tt = TranspositionTable()
     maximizing = board.turn == chess.WHITE
     best_move, best_score, completed_depth = None, 0, 0
     root_stack_len = len(board.move_stack)
