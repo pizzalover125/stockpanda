@@ -1,14 +1,17 @@
 #engine.py
 import chess #type: ignore
 import chess.polyglot #type: ignore
+import chess.syzygy #type: ignore
 import time
 
 MAX_DEPTH = 5         # max search depth 
 TIME_LIMIT = 4.0      # seconds per move
 MATE_SCORE = 1000000  # large enough to always outweigh any material eval
 
-BOOK_PATH = "pc2500.bin"   # set to None to disable
-BOOK_MAX_PLY = 20          # stop using the book after this many plies (half-moves)
+BOOK_PATH = "pc2500.bin"    # set to None to disable
+BOOK_MAX_PLY = 20           # stop using the book after this many plies
+
+TABLEBASE_DIR = "syzygy/"   # set to None to disable; place .rtbw/.rtbz files here
 
 TT_EXACT = 0
 TT_LOWER = 1
@@ -306,12 +309,72 @@ def get_book_move(board):
     except FileNotFoundError:
         return None  # book file not found; fall through to engine search
 
+_tablebase = None
+
+def _init_tablebase():
+    global _tablebase
+    if TABLEBASE_DIR is None:
+        return None
+    if _tablebase is not None:
+        return _tablebase
+    try:
+        tb = chess.syzygy.Tablebase()
+        n = tb.add_directory(TABLEBASE_DIR)
+        if n > 0:
+            _tablebase = tb
+            print(f"[tablebase] loaded {n} files from {TABLEBASE_DIR}")
+            return tb
+        tb.close()
+    except Exception:
+        pass
+    return None
+
+# probe the syzygy tablebase for the best move; returns None if unavailable
+def get_tablebase_move(board):
+    tb = _init_tablebase()
+    if tb is None:
+        return None
+
+    best_move, best_score = None, -10**9
+
+    for move in board.legal_moves:
+        board.push(move)
+        try:
+            dtz = tb.probe_dtz(board)
+        except (KeyError, ValueError):
+            board.pop()
+            continue
+        board.pop()
+
+        # dtz from opponent's perspective after our move:
+        #   dtz < 0 → opponent losing → we're winning (good)
+        #   dtz == 0 → draw
+        #   dtz > 0 → opponent winning → we're losing (bad)
+        if dtz < 0:        # we win
+            score = 2_000_000 + dtz   # dtz is negative, smaller |dtz| = better
+        elif dtz == 0:      # draw
+            score = 1_000_000
+        else:               # we lose
+            score = -dtz    # larger dtz = longer loss = "better" among losses
+
+        if score > best_score:
+            best_score = score
+            best_move = move
+
+    if best_move is not None:
+        print(f"[tablebase] move {best_move}")
+    return best_move
+
 # iterative-deepening: search increasing depths until time runs out
 def get_engine_move(board, max_depth=MAX_DEPTH, time_limit=TIME_LIMIT):
     book_move = get_book_move(board)
     if book_move is not None:
         print(f"[book] {book_move}")
         return book_move
+
+    tb_move = get_tablebase_move(board)
+    if tb_move is not None:
+        return tb_move
 
     deadline = time.time() + time_limit
     tt = TranspositionTable()
@@ -343,3 +406,4 @@ def get_engine_move(board, max_depth=MAX_DEPTH, time_limit=TIME_LIMIT):
     # debug line 
     print(f"[engine] depth {completed_depth}  eval {best_score / 100:+.2f} (white's view)  move {best_move}")
     return best_move 
+
