@@ -37,31 +37,51 @@ class TranspositionTable:
         if existing is None or depth >= existing.depth:
             self.table[key] = TTEntry(depth, score, flag, best_move)
 
-# piece values
-# note: most engines use 330 for bishops, but i prefer 350 to make them more important
-PIECE_VALUES = {
+# piece values for tapered evaluation (middlegame vs endgame)
+MG_VALUES = {
     chess.PAWN:   100,
     chess.KNIGHT: 320,
     chess.BISHOP: 350,
     chess.ROOK:   500,
     chess.QUEEN:  900,
-    chess.KING:     0, # 0 because king is invaluable
+    chess.KING:     0,
 }
 
-# piece square tables to evaluate position of pieces
-PST = {
+EG_VALUES = {
+    chess.PAWN:   130, 
+    chess.KNIGHT: 310,
+    chess.BISHOP: 330,
+    chess.ROOK:   500,
+    chess.QUEEN:  900,
+    chess.KING:     0,
+}
+
+# weights for calculating game phase
+PHASE_WEIGHTS = {
+    chess.KNIGHT: 1,
+    chess.BISHOP: 1,
+    chess.ROOK:   2,
+    chess.QUEEN:  4,
+}
+MAX_PHASE = 24
+
+# piece values for move ordering
+PIECE_VALUES = MG_VALUES
+
+# piece square tables (middlegame)
+PST_MG = {
     chess.PAWN: [
-         0,  0,  0,  0,  0,  0,  0,  0,  # 0 because not possible
-        50, 50, 50, 50, 50, 50, 50, 50,  # almost promoting
-        10, 10, 20, 30, 30, 20, 10, 10,  
-         5,  5, 10, 25, 25, 10,  5,  5,  
-         0,  0,  0, 20, 20,  0,  0,  0,  
-         5, -5,-10,  0,  0,-10, -5,  5, # encourages pawn to e4/d4
-         5, 10, 10,-20,-20, 10, 10,  5,  
-         0,  0,  0,  0,  0,  0,  0,  0,  # 0 because not possible
+         0,  0,  0,  0,  0,  0,  0,  0,
+        50, 50, 50, 50, 50, 50, 50, 50,
+        10, 10, 20, 30, 30, 20, 10, 10,
+         5,  5, 10, 25, 25, 10,  5,  5,
+         0,  0,  0, 20, 20,  0,  0,  0,
+         5, -5,-10,  0,  0,-10, -5,  5,
+         5, 10, 10,-20,-20, 10, 10,  5,
+         0,  0,  0,  0,  0,  0,  0,  0,
     ],
-    chess.KNIGHT: [ # edges bad; center good
-        -50,-40,-30,-30,-30,-30,-40,-50, 
+    chess.KNIGHT: [
+        -50,-40,-30,-30,-30,-30,-40,-50,
         -40,-20,  0,  0,  0,  0,-20,-40,
         -30,  0, 10, 15, 15, 10,  0,-30,
         -30,  5, 15, 20, 20, 15,  5,-30,
@@ -70,7 +90,7 @@ PST = {
         -40,-20,  0,  5,  5,  0,-20,-40,
         -50,-40,-30,-30,-30,-30,-40,-50,
     ],
-    chess.BISHOP: [ # center good
+    chess.BISHOP: [
         -20,-10,-10,-10,-10,-10,-10,-20,
         -10,  0,  0,  0,  0,  0,  0,-10,
         -10,  0,  5, 10, 10,  5,  0,-10,
@@ -80,9 +100,9 @@ PST = {
         -10,  5,  0,  0,  0,  0,  5,-10,
         -20,-10,-10,-10,-10,-10,-10,-20,
     ],
-    chess.ROOK: [ 
+    chess.ROOK: [
          0,  0,  0,  0,  0,  0,  0,  0,
-         5, 10, 10, 10, 10, 10, 10,  5, # 7th rank good for rook
+         5, 10, 10, 10, 10, 10, 10,  5,
         -5,  0,  0,  0,  0,  0,  0, -5,
         -5,  0,  0,  0,  0,  0,  0, -5,
         -5,  0,  0,  0,  0,  0,  0, -5,
@@ -90,7 +110,7 @@ PST = {
         -5,  0,  0,  0,  0,  0,  0, -5,
          0,  0,  0,  5,  5,  0,  0,  0,
     ],
-    chess.QUEEN: [ # center good
+    chess.QUEEN: [
         -20,-10,-10, -5, -5,-10,-10,-20,
         -10,  0,  0,  0,  0,  0,  0,-10,
         -10,  0,  5,  5,  5,  5,  0,-10,
@@ -100,7 +120,7 @@ PST = {
         -10,  0,  5,  0,  0,  0,  0,-10,
         -20,-10,-10, -5, -5,-10,-10,-20,
     ],
-    chess.KING: [ # stay in corner
+    chess.KING: [
         -30,-40,-40,-50,-50,-40,-40,-30,
         -30,-40,-40,-50,-50,-40,-40,-30,
         -30,-40,-40,-50,-50,-40,-40,-30,
@@ -112,9 +132,37 @@ PST = {
     ],
 }
 
+# piece square tables (endgame)
+PST_EG = {
+    chess.PAWN: [
+         0,  0,  0,  0,  0,  0,  0,  0,
+        80, 80, 80, 80, 80, 80, 80, 80,
+        50, 50, 50, 50, 50, 50, 50, 50,
+        30, 30, 30, 30, 30, 30, 30, 30,
+        20, 20, 20, 20, 20, 20, 20, 20,
+        10, 10, 10, 10, 10, 10, 10, 10,
+        10, 10, 10, 10, 10, 10, 10, 10,
+         0,  0,  0,  0,  0,  0,  0,  0,
+    ],
+    chess.KNIGHT: PST_MG[chess.KNIGHT],
+    chess.BISHOP: PST_MG[chess.BISHOP],
+    chess.ROOK:   PST_MG[chess.ROOK],
+    chess.QUEEN:  PST_MG[chess.QUEEN],
+    chess.KING: [
+        -50,-40,-30,-20,-20,-30,-40,-50,
+        -30,-20,-10,  0,  0,-10,-20,-30,
+        -30,-10, 20, 30, 30, 20,-10,-30,
+        -30,-10, 30, 40, 40, 30,-10,-30,
+        -30,-10, 30, 40, 40, 30,-10,-30,
+        -30,-10, 20, 30, 30, 20,-10,-30,
+        -30,-30,  0,  0,  0,  0,-30,-30,
+        -50,-30,-30,-30,-30,-30,-30,-50,
+    ],
+}
+
 # get piece-square table score for a piece on a square and flip for black
-def _pst_score(piece_type, square, color):
-    table = PST[piece_type]
+def _pst_score(piece_type, square, color, table_dict):
+    table = table_dict[piece_type]
 
     if color == chess.WHITE:
         rank = 7 - (square // 8)
@@ -125,13 +173,30 @@ def _pst_score(piece_type, square, color):
 
 # evaluate board position based on material and piece-square tables
 def evaluate(board):
-    score = 0
-    for piece_type, value in PIECE_VALUES.items():
-        for sq in board.pieces(piece_type, chess.WHITE):
-            score += value + _pst_score(piece_type, sq, chess.WHITE)
-        for sq in board.pieces(piece_type, chess.BLACK):
-            score -= value + _pst_score(piece_type, sq, chess.BLACK)
-    return score
+    mg_score = 0
+    eg_score = 0
+    phase = 0
+
+    for piece_type in [chess.PAWN, chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN, chess.KING]:
+        white_pieces = board.pieces(piece_type, chess.WHITE)
+        black_pieces = board.pieces(piece_type, chess.BLACK)
+        
+        # calculate phase
+        if piece_type in PHASE_WEIGHTS:
+            phase += (len(white_pieces) + len(black_pieces)) * PHASE_WEIGHTS[piece_type]
+            
+        for sq in white_pieces:
+            mg_score += MG_VALUES[piece_type] + _pst_score(piece_type, sq, chess.WHITE, PST_MG)
+            eg_score += EG_VALUES[piece_type] + _pst_score(piece_type, sq, chess.WHITE, PST_EG)
+        for sq in black_pieces:
+            mg_score -= MG_VALUES[piece_type] + _pst_score(piece_type, sq, chess.BLACK, PST_MG)
+            eg_score -= EG_VALUES[piece_type] + _pst_score(piece_type, sq, chess.BLACK, PST_EG)
+
+    # cap phase
+    if phase > MAX_PHASE: phase = MAX_PHASE
+    
+    # gradually change between middlegame and endgame
+    return (mg_score * phase + eg_score * (MAX_PHASE - phase)) // MAX_PHASE
 
 # raised deep in the search once we pass the time budget
 class SearchTimeout(Exception):
@@ -406,4 +471,3 @@ def get_engine_move(board, max_depth=MAX_DEPTH, time_limit=TIME_LIMIT):
     # debug line 
     print(f"[engine] depth {completed_depth}  eval {best_score / 100:+.2f} (white's view)  move {best_move}")
     return best_move 
-
