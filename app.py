@@ -71,6 +71,7 @@ def move():
     is_capture = board.is_capture(m)
     is_castling = board.is_castling(m)
     is_promotion = m.promotion is not None
+    san = board.san(m)
 
     # apply player's move and return immediately so the UI can render it
     board.push(m)
@@ -91,7 +92,8 @@ def move():
         is_checkmate=is_checkmate,
         is_draw=is_draw,
         score=score,
-        reason=reason
+        reason=reason,
+        san=san
     )
 
 @app.route("/engine_move", methods=["POST"])
@@ -103,6 +105,7 @@ def engine_move():
     is_capture = board.is_capture(m)
     is_castling = board.is_castling(m)
     is_promotion = m.promotion is not None
+    san = board.san(m)
 
     board.push(m)
 
@@ -121,7 +124,8 @@ def engine_move():
         is_checkmate=is_checkmate,
         is_draw=is_draw,
         score=score,
-        reason=reason
+        reason=reason,
+        san=san
     )
 
 # reset the game
@@ -135,4 +139,4 @@ def reset():
     )
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    app.run(debug=True, port=5002)

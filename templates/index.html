@@ -178,13 +178,6 @@
         height: 24px;
       }
 
-      .game-container {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-      }
-
       .modal-overlay {
         position: fixed;
         top: 0;
@@ -484,12 +477,150 @@
 
       .game-container {
         display: flex;
-        align-items: center;
+        align-items: stretch;
         justify-content: center;
         width: 100%;
-        max-width: 600px;
+        max-width: 976px;
         padding: 24px;
         box-sizing: border-box;
+        gap: 24px;
+      }
+
+      .move-history-panel {
+        display: flex;
+        flex-direction: column;
+        background: rgba(38, 36, 33, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        width: 336px;
+        min-width: 288px;
+        box-sizing: border-box;
+        overflow: hidden;
+        font-family: "Outfit", sans-serif;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+      }
+
+      .history-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 18px;
+        background: rgba(255, 255, 255, 0.02);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .history-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #fff;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+      }
+
+      .eval-badge {
+        font-family: monospace;
+        font-size: 0.9rem;
+        font-weight: 700;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.25);
+        color: #bababa;
+        transition: all 0.3s ease;
+      }
+
+      .eval-badge.white-better {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.15);
+      }
+
+      .eval-badge.black-better {
+        color: #fff;
+        background: rgba(118, 150, 86, 0.45);
+      }
+
+      .moves-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px 0;
+      }
+
+      .moves-container::-webkit-scrollbar {
+        width: 6px;
+      }
+      .moves-container::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .moves-container::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+      }
+      .moves-container::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      .move-row {
+        display: flex;
+        align-items: center;
+        padding: 6px 18px;
+        font-size: 0.95rem;
+      }
+
+      .move-row:nth-child(even) {
+        background: rgba(255, 255, 255, 0.015);
+      }
+
+      .move-number {
+        width: 35px;
+        color: #62605e;
+        font-weight: 600;
+      }
+
+      .move-cell {
+        flex: 1;
+        font-weight: 500;
+        cursor: default;
+        padding: 4px 8px;
+        border-radius: 4px;
+        color: #bababa;
+        transition: all 0.15s ease;
+      }
+
+      .move-cell.active-move {
+        background: rgba(118, 150, 86, 0.25);
+        color: #fff;
+        font-weight: 600;
+      }
+
+      .history-footer {
+        padding: 12px 18px;
+        background: rgba(255, 255, 255, 0.02);
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .game-status-text {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #9c9a96;
+      }
+
+      @media (max-width: 800px) {
+        .game-container {
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+          height: auto;
+          max-height: 98vh;
+          overflow-y: auto;
+        }
+        .board-wrapper {
+          width: 90vw;
+          max-width: min(500px, calc(100vh - 320px));
+        }
+        .move-history-panel {
+          width: 90vw !important;
+          max-width: min(500px, calc(100vh - 320px)) !important;
+          height: 180px !important;
+        }
       }
 
       .settings-btn-top-right {
@@ -601,6 +732,18 @@
         <div class="player-panel user-panel">
           <span class="player-name">You</span>
           <div class="timer" id="player-timer">--:--</div>
+        </div>
+      </div>
+
+      <div class="move-history-panel">
+        <div class="history-header">
+          <span class="history-title">Moves</span>
+        </div>
+        <div class="moves-container" id="moves-list"></div>
+        <div class="history-footer">
+          <div class="game-status-text" id="game-status-small">
+            White to move
+          </div>
         </div>
       </div>
     </div>
@@ -923,6 +1066,99 @@
         activeTimerInterval = null,
         activeTurn = "w";
 
+      let moveHistory = [];
+
+      function resizeMovesPanel() {
+        const wrapperEl = $(".board-wrapper");
+        const panelEl = $(".move-history-panel");
+        if (wrapperEl.length && panelEl.length) {
+          if (window.innerWidth > 800) {
+            const wrapperHeight = wrapperEl.outerHeight();
+            if (wrapperHeight > 0) {
+              panelEl.css("height", wrapperHeight + "px");
+            }
+          } else {
+            panelEl.css("height", "");
+          }
+        }
+      }
+
+      $(window).on("resize", resizeMovesPanel);
+
+      function updateEvalDisplay(score) {
+        const evalScoreEl = $("#eval-score");
+        if (!evalScoreEl.length) return;
+        if (Math.abs(score) >= 900000) {
+          const mateText = score > 0 ? "M" : "-M";
+          evalScoreEl.text(mateText);
+          evalScoreEl.removeClass("white-better black-better");
+          if (score > 0) {
+            evalScoreEl.addClass("white-better");
+          } else {
+            evalScoreEl.addClass("black-better");
+          }
+          return;
+        }
+
+        const val = score / 100;
+        const formatted = (val >= 0 ? "+" : "") + val.toFixed(2);
+        evalScoreEl.text(formatted);
+
+        evalScoreEl.removeClass("white-better black-better");
+        if (val > 0.3) {
+          evalScoreEl.addClass("white-better");
+        } else if (val < -0.3) {
+          evalScoreEl.addClass("black-better");
+        }
+      }
+
+      function updateMoveHistoryUI() {
+        const list = $("#moves-list");
+        list.empty();
+
+        for (let i = 0; i < moveHistory.length; i += 2) {
+          const moveNum = Math.floor(i / 2) + 1;
+          const whiteMove = moveHistory[i];
+          const blackMove = moveHistory[i + 1];
+
+          const isWhiteLast = i === moveHistory.length - 1;
+          const isBlackLast = i + 1 === moveHistory.length - 1;
+
+          list.append(`
+            <div class="move-row">
+              <div class="move-number">${moveNum}.</div>
+              <div class="move-cell ${isWhiteLast ? "active-move" : ""}">${whiteMove.san}</div>
+              <div class="move-cell ${isBlackLast ? "active-move" : ""}">${blackMove ? blackMove.san : ""}</div>
+            </div>
+          `);
+        }
+
+        // Scroll to the bottom of the container
+        setTimeout(() => {
+          if (list.length && list[0]) {
+            list.scrollTop(list[0].scrollHeight);
+          }
+        }, 10);
+
+        // Update evaluation display
+        if (moveHistory.length > 0) {
+          const latestMove = moveHistory[moveHistory.length - 1];
+          const score = latestMove.score;
+          updateEvalDisplay(score);
+        } else {
+          updateEvalDisplay(0);
+        }
+      }
+
+      function addMoveToHistory(san, color, score) {
+        moveHistory.push({ san, color, score });
+        updateMoveHistoryUI();
+
+        // update small game status text
+        const nextTurn = color === "w" ? "Black" : "White";
+        $("#game-status-small").text(`${nextTurn} to move`);
+      }
+
       function clearHighlights() {
         $("#board .square-55d63").removeClass("highlight selected");
       }
@@ -994,11 +1230,15 @@
         legalCache = {};
         clearHighlights();
 
+        const msg = isPlayer
+          ? "Game over - You lost on time!"
+          : "Game over - stockpanda lost on time!";
+        $("#status").text(msg);
+        $("#game-status-small").text(msg);
+
         if (isPlayer) {
-          $("#status").text("Game over - You lost on time!");
           chessAudio.play("defeat", false);
         } else {
-          $("#status").text("Game over - stockpanda lost on time!");
           chessAudio.play("victory", true);
         }
         updateTimerDisplays();
@@ -1043,6 +1283,9 @@
           activeTurn = d.fen.split(" ")[1];
           cboard.position(d.fen.split(" ")[0], true);
 
+          const moveColor = playerColor === "w" ? "b" : "w";
+          addMoveToHistory(d.san, moveColor, d.score);
+
           if (d.over) {
             clearInterval(activeTimerInterval);
             showGameOverModal(d.reason || "Game Over!");
@@ -1074,6 +1317,9 @@
         activeTurn = d.fen.split(" ")[1];
         cboard.position(d.fen.split(" ")[0], true);
         legalCache = {};
+
+        const moveColor = playerColor;
+        addMoveToHistory(d.san, moveColor, d.score);
 
         playMoveSound(d, true);
 
@@ -1185,6 +1431,8 @@
         },
       });
 
+      setTimeout(resizeMovesPanel, 150);
+
       function showColorModal() {
         $("#color-modal").addClass("active");
       }
@@ -1192,6 +1440,7 @@
       function showGameOverModal(message) {
         $("#game-over-reason").text(message);
         $("#game-over-modal").addClass("active");
+        $("#game-status-small").text(message);
       }
 
       async function initGame(color) {
@@ -1220,6 +1469,11 @@
         pendingPromo = null;
         thinking = false;
         $("#status").text("");
+
+        moveHistory = [];
+        updateMoveHistoryUI();
+        $("#game-status-small").text("White to move");
+        setTimeout(resizeMovesPanel, 150);
 
         updateTimerDisplays();
         startTimer();
