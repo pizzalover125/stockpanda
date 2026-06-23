@@ -9,6 +9,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
     <style>
+      @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap");
+
       html,
       body {
         margin: 0;
@@ -16,19 +18,46 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        background: #252220;
+        color: #bababa;
+        font-family:
+          "Outfit",
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+
+      .white-1e1d7 {
+        background-color: #eeeed2 !important;
+      }
+
+      .black-3c85d {
+        background-color: #769656 !important;
+      }
+
+      .white-1e1d7 .notation-322f9 {
+        color: #769656 !important;
+      }
+
+      .black-3c85d .notation-322f9 {
+        color: #eeeed2 !important;
       }
 
       .highlight {
         background: radial-gradient(
             circle,
-            rgba(0, 0, 0, 0.25) 30%,
-            transparent 30%
+            rgba(0, 0, 0, 0.15) 25%,
+            transparent 25%
           )
           center/60% no-repeat;
       }
 
       .selected {
-        background: rgba(255, 215, 0, 0.5) !important;
+        background: rgba(247, 247, 105, 0.5) !important;
       }
 
       #promo-modal {
@@ -37,10 +66,12 @@
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        background: #fff;
-        border: 1px solid #999;
+        background: #262421;
+        border: 1px solid #403e3b;
+        border-radius: 4px;
         padding: 12px;
         z-index: 999;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
       }
 
       #promo-modal img {
@@ -48,36 +79,455 @@
         height: 60px;
         cursor: pointer;
         margin: 4px;
+        transition: transform 0.15s ease;
+      }
+
+      #promo-modal img:hover {
+        transform: scale(1.1);
       }
 
       #board {
         width: 40vw;
-        border: 2px solid black;
+        border: none;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+
+      #status {
+        margin-top: 16px;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #fff;
+        height: 24px;
+      }
+
+      .game-container {
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
+        gap: 12px;
+      }
+
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(15, 14, 12, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .modal-overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .modal-content {
+        background: rgba(38, 36, 33, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+        padding: 48px 40px;
+        text-align: center;
+        box-shadow:
+          0 30px 60px rgba(0, 0, 0, 0.7),
+          inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        max-width: 480px;
+        width: 90%;
+        transform: scale(0.9);
+        transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .modal-overlay.active .modal-content {
+        transform: scale(1);
+      }
+
+      .modal-title {
+        font-size: 2.25rem;
+        font-weight: 800;
+        margin-top: 0;
+        margin-bottom: 12px;
+        letter-spacing: -0.5px;
+        background: linear-gradient(135deg, #ffffff 0%, #d4d0c9 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .modal-subtitle {
+        font-size: 1.05rem;
+        color: #9c9a96;
+        margin-bottom: 36px;
+        line-height: 1.5;
+      }
+
+      .choice-container {
+        display: flex;
+        gap: 24px;
+        justify-content: center;
+      }
+
+      .choice-card {
+        flex: 1;
+        background: rgba(48, 46, 44, 0.5);
+        border: 2px solid rgba(255, 255, 255, 0.04);
+        border-radius: 16px;
+        padding: 28px 16px;
+        cursor: pointer;
+        transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+      }
+
+      .choice-card:hover {
+        transform: translateY(-8px);
+      }
+
+      .choice-card.choice-white:hover {
+        border-color: rgba(238, 238, 210, 0.6);
+        background: rgba(238, 238, 210, 0.05);
+        box-shadow: 0 16px 36px rgba(238, 238, 210, 0.12);
+      }
+
+      .choice-card.choice-black:hover {
+        border-color: rgba(118, 150, 86, 0.6);
+        background: rgba(118, 150, 86, 0.05);
+        box-shadow: 0 16px 36px rgba(118, 150, 86, 0.18);
+      }
+
+      .choice-icon {
+        width: 90px;
+        height: 90px;
+        filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.25));
+        transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .choice-card:hover .choice-icon {
+        transform: scale(1.12) rotate(2deg);
+        filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.4));
+      }
+
+      .choice-label {
+        font-size: 1.25rem;
+        font-weight: 700;
+        transition: color 0.3s ease;
+      }
+
+      .choice-white .choice-label {
+        color: #d4d2b9;
+      }
+      .choice-white:hover .choice-label {
+        color: #eeeed2;
+      }
+
+      .choice-black .choice-label {
+        color: #648049;
+      }
+      .choice-black:hover .choice-label {
+        color: #82a85f;
+      }
+
+      .btn-premium {
+        background: linear-gradient(135deg, #769656 0%, #5d7e3f 100%);
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        padding: 12px 28px;
+        font-family: "Outfit", sans-serif;
+        font-size: 1.05rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow:
+          0 4px 15px rgba(118, 150, 86, 0.3),
+          inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        margin-top: 16px;
+      }
+
+      .btn-premium:hover {
+        transform: translateY(-2px);
+        box-shadow:
+          0 8px 24px rgba(118, 150, 86, 0.45),
+          inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        background: linear-gradient(135deg, #83a562 0%, #688a48 100%);
+      }
+
+      .btn-premium:active {
+        transform: translateY(0);
       }
     </style>
   </head>
   <body>
-    <div style="text-align: center">
-      <div id="board"></div>
+    <div
+      style="
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      "
+    >
+      <div class="game-container">
+        <div id="board"></div>
+      </div>
       <p id="status"></p>
+      <button id="restart-btn" class="btn-premium">New Game</button>
     </div>
 
     <div id="promo-modal"></div>
 
+    <div id="color-modal" class="modal-overlay">
+      <div class="modal-content">
+        <h2 class="modal-title">Choose Your Side</h2>
+        <p class="modal-subtitle">
+          Pick a side to start a new game against stockpanda
+        </p>
+        <div class="choice-container">
+          <div class="choice-card choice-white" id="choose-white">
+            <img
+              src="https://chessboardjs.com/img/chesspieces/wikipedia/wK.png"
+              class="choice-icon"
+              alt="White King"
+            />
+            <span class="choice-label">Play White</span>
+          </div>
+          <div class="choice-card choice-black" id="choose-black">
+            <img
+              src="https://chessboardjs.com/img/chesspieces/wikipedia/bK.png"
+              class="choice-icon"
+              alt="Black King"
+            />
+            <span class="choice-label">Play Black</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script>
+      class ChessAudio {
+        constructor() {
+          this.audioCtx = null;
+        }
+
+        init() {
+          if (this.audioCtx) return;
+          try {
+            this.audioCtx = new (
+              window.AudioContext || window.webkitAudioContext
+            )();
+          } catch (e) {
+            console.warn("Audio Context initialization failed.", e);
+          }
+        }
+
+        resume() {
+          this.init();
+          if (this.audioCtx && this.audioCtx.state === "suspended") {
+            this.audioCtx.resume();
+          }
+        }
+
+        play(type, isWin = true) {
+          this.resume();
+          if (!this.audioCtx) return;
+          const time = this.audioCtx.currentTime;
+
+          if (type === "move") {
+            this.playMoveSynth(time);
+          } else if (type === "capture") {
+            this.playCaptureSynth(time);
+          } else if (type === "check") {
+            this.playCheckSynth(time);
+          } else if (type === "castle") {
+            this.playCastleSynth(time);
+          } else if (type === "victory" || type === "defeat") {
+            this.playGameOverSynth(time, type === "victory");
+          }
+        }
+
+        playMoveSynth(time) {
+          const clickOsc = this.audioCtx.createOscillator();
+          const clickGain = this.audioCtx.createGain();
+          clickOsc.type = "sine";
+          clickOsc.frequency.setValueAtTime(1200, time);
+          clickOsc.frequency.exponentialRampToValueAtTime(800, time + 0.005);
+          clickGain.gain.setValueAtTime(0.08, time);
+          clickGain.gain.exponentialRampToValueAtTime(0.001, time + 0.005);
+          clickOsc.connect(clickGain);
+          clickGain.connect(this.audioCtx.destination);
+          clickOsc.start(time);
+          clickOsc.stop(time + 0.01);
+
+          const bodyOsc = this.audioCtx.createOscillator();
+          const bodyGain = this.audioCtx.createGain();
+          bodyOsc.type = "sine";
+          bodyOsc.frequency.setValueAtTime(180, time);
+          bodyOsc.frequency.exponentialRampToValueAtTime(100, time + 0.08);
+          bodyGain.gain.setValueAtTime(0.35, time);
+          bodyGain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
+          bodyOsc.connect(bodyGain);
+          bodyGain.connect(this.audioCtx.destination);
+          bodyOsc.start(time);
+          bodyOsc.stop(time + 0.1);
+        }
+
+        playCaptureSynth(time) {
+          const clickOsc = this.audioCtx.createOscillator();
+          const clickGain = this.audioCtx.createGain();
+          clickOsc.type = "sine";
+          clickOsc.frequency.setValueAtTime(1600, time);
+          clickOsc.frequency.exponentialRampToValueAtTime(1000, time + 0.008);
+          clickGain.gain.setValueAtTime(0.1, time);
+          clickGain.gain.exponentialRampToValueAtTime(0.001, time + 0.008);
+          clickOsc.connect(clickGain);
+          clickGain.connect(this.audioCtx.destination);
+          clickOsc.start(time);
+          clickOsc.stop(time + 0.01);
+
+          const osc1 = this.audioCtx.createOscillator();
+          const osc2 = this.audioCtx.createOscillator();
+          const gain1 = this.audioCtx.createGain();
+          const gain2 = this.audioCtx.createGain();
+
+          osc1.type = "triangle";
+          osc1.frequency.setValueAtTime(260, time);
+          osc1.frequency.exponentialRampToValueAtTime(160, time + 0.09);
+          gain1.gain.setValueAtTime(0.2, time);
+          gain1.gain.exponentialRampToValueAtTime(0.001, time + 0.09);
+
+          osc2.type = "sine";
+          osc2.frequency.setValueAtTime(370, time);
+          osc2.frequency.exponentialRampToValueAtTime(220, time + 0.07);
+          gain2.gain.setValueAtTime(0.12, time);
+          gain2.gain.exponentialRampToValueAtTime(0.001, time + 0.07);
+
+          osc1.connect(gain1);
+          gain1.connect(this.audioCtx.destination);
+          osc2.connect(gain2);
+          gain2.connect(this.audioCtx.destination);
+
+          osc1.start(time);
+          osc2.start(time);
+          osc1.stop(time + 0.1);
+          osc2.stop(time + 0.1);
+        }
+
+        playCheckSynth(time) {
+          const playTone = (freq, start, duration, gainVal) => {
+            const osc = this.audioCtx.createOscillator();
+            const gain = this.audioCtx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(freq, start);
+            gain.gain.setValueAtTime(gainVal, start);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+            osc.connect(gain);
+            gain.connect(this.audioCtx.destination);
+            osc.start(start);
+            osc.stop(start + duration + 0.01);
+          };
+          playTone(520, time, 0.08, 0.1);
+          playTone(650, time + 0.05, 0.12, 0.1);
+        }
+
+        playGameOverSynth(time, isWin) {
+          const freqs = isWin
+            ? [261.63, 329.63, 392.0, 523.25]
+            : [196.0, 220.0, 261.63, 246.94];
+          freqs.forEach((freq, idx) => {
+            const osc = this.audioCtx.createOscillator();
+            const gain = this.audioCtx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(freq, time + idx * 0.08);
+            gain.gain.setValueAtTime(0, time + idx * 0.08);
+            gain.gain.linearRampToValueAtTime(0.1, time + idx * 0.08 + 0.04);
+            gain.gain.exponentialRampToValueAtTime(
+              0.001,
+              time + idx * 0.08 + 0.35,
+            );
+            osc.connect(gain);
+            gain.connect(this.audioCtx.destination);
+            osc.start(time + idx * 0.08);
+            osc.stop(time + idx * 0.08 + 0.4);
+          });
+        }
+      }
+
+      const chessAudio = new ChessAudio();
+
+      $(document).on("click touchstart", () => {
+        chessAudio.resume();
+      });
+
+      function playMoveSound(d, isPlayerMove) {
+        if (d.is_checkmate) {
+          chessAudio.play(isPlayerMove ? "victory" : "defeat", isPlayerMove);
+        } else if (d.is_draw) {
+          chessAudio.play("defeat", false);
+        } else if (d.is_check) {
+          chessAudio.play("check");
+        } else if (d.is_castling) {
+          chessAudio.play("castle");
+        } else if (d.is_capture) {
+          chessAudio.play("capture");
+        } else {
+          chessAudio.play("move");
+        }
+      }
+
       const PIECE_URL =
         "https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png";
       let cboard,
         selected = null,
         pendingPromo = null,
         legalCache = {},
-        thinking = false;
+        thinking = false,
+        playerColor = null;
 
       function clearHighlights() {
         $("#board .square-55d63").removeClass("highlight selected");
       }
 
-      // apply move to backend; render player move immediately, then trigger engine
+      async function loadLegalMoves() {
+        const res = await fetch("/legal");
+        legalCache = (await res.json()).moves;
+      }
+
+      function getLegal(square) {
+        return legalCache[square] || [];
+      }
+
+      async function triggerEngineMove() {
+        thinking = true;
+        $("#status").text("stockpanda is thinking...");
+        try {
+          const res = await fetch("/engine_move", { method: "POST" });
+          const d = await res.json();
+          cboard.position(d.fen.split(" ")[0], true);
+          $("#status").text(d.over ? "Game over!" : "");
+
+          if (d.over) {
+            legalCache = {};
+          } else {
+            await loadLegalMoves();
+          }
+
+          playMoveSound(d, false);
+        } catch (e) {
+          console.error("Engine move failed:", e);
+        } finally {
+          thinking = false;
+        }
+      }
+
       async function applyMove(uci, promotion = "q") {
         if (thinking) return;
 
@@ -89,44 +539,28 @@
         const d = await res.json();
         if (d.error) return;
 
-        // render the player's move right away
-        cboard.position(d.fen.split(" ")[0], false);
+        cboard.position(d.fen.split(" ")[0], true);
         legalCache = {};
+
+        playMoveSound(d, true);
 
         if (d.over) {
           $("#status").text("Game over!");
           return;
         }
 
-        // now ask the engine for its reply
-        thinking = true;
-        const res2 = await fetch("/engine_move", { method: "POST" });
-        const d2 = await res2.json();
-        thinking = false;
-
-        cboard.position(d2.fen.split(" ")[0], false);
-        $("#status").text(d2.over ? "Game over!" : "");
-        legalCache = {};
+        await triggerEngineMove();
       }
 
-      // see if move if legal
-      async function getLegal(square) {
-        if (legalCache[square]) return legalCache[square];
-        const res = await fetch("/legal?square=" + square);
-        const { moves } = await res.json();
-        legalCache[square] = moves;
-        return moves;
-      }
-
-      // is this promotion?
       function isPromoMove(from, to) {
-        const piece = cboard.position()[from];
+        const piece = cboard.position()[from] || cboard.position()[to];
         return (
-          (piece === "wP" && to[1] === "8") || (piece === "bP" && to[1] === "1")
+          piece &&
+          ((piece === "wP" && to[1] === "8") ||
+            (piece === "bP" && to[1] === "1"))
         );
       }
 
-      // show promotion choice modal
       function showPromoModal(uci, color) {
         pendingPromo = uci;
         const modal = $("#promo-modal").find("img").remove().end();
@@ -142,20 +576,19 @@
         modal.show();
       }
 
-      // handle a move: if promotion, show modal; else just apply
       async function handleMove(from, to) {
         clearHighlights();
         selected = null;
         if (isPromoMove(from, to)) {
-          showPromoModal(from + to, cboard.position()[from][0]);
+          const piece = cboard.position()[from] || cboard.position()[to];
+          showPromoModal(from + to, piece[0]);
         } else {
           await applyMove(from + to);
         }
       }
 
-      // handle click on a square
       async function squareClick(square) {
-        if (thinking) return;
+        if (!playerColor || thinking) return;
         if (selected === square) {
           clearHighlights();
           selected = null;
@@ -163,7 +596,7 @@
         }
 
         if (selected) {
-          const moves = await getLegal(selected);
+          const moves = getLegal(selected);
           const from = selected;
           clearHighlights();
           selected = null;
@@ -171,14 +604,16 @@
           return;
         }
 
-        const moves = await getLegal(square);
+        const piece = cboard.position()[square];
+        if (!piece || piece[0] !== playerColor) return;
+
+        const moves = getLegal(square);
         if (!moves.length) return;
         selected = square;
         $(`#board .square-${square}`).addClass("selected");
         moves.forEach((sq) => $(`#board .square-${sq}`).addClass("highlight"));
       }
 
-      // delegate click handler to board container
       $(document).on(
         "click",
         "#board .square-55d63, #board .square-55d63 img",
@@ -189,16 +624,16 @@
         },
       );
 
-      // initialize chessboard with drag-and-drop handlers
       cboard = Chessboard("board", {
         draggable: true,
         position: "start",
         pieceTheme: PIECE_URL,
-        onDragStart: async (source, piece) => {
-          if (piece[0] !== "w" || thinking) return false;
+        onDragStart: (source, piece) => {
+          if (!playerColor || piece[0] !== playerColor || thinking)
+            return false;
           clearHighlights();
           selected = null;
-          const moves = await getLegal(source);
+          const moves = getLegal(source);
           $(`#board .square-${source}`).addClass("selected");
           moves.forEach((sq) =>
             $(`#board .square-${sq}`).addClass("highlight"),
@@ -208,28 +643,42 @@
         onDrop: (source, target) => {
           clearHighlights();
           if (target === "offboard" || source === target) return "snapback";
-          getLegal(source).then((moves) => {
-            if (!moves.includes(target)) return;
-            handleMove(source, target);
-          });
-          return "snapback";
+          const moves = getLegal(source);
+          if (!moves.includes(target)) return "snapback";
+          handleMove(source, target);
         },
       });
 
-      // reset game
-      async function doReset() {
-        await fetch("/reset", { method: "POST" });
+      function showColorModal() {
+        $("#color-modal").addClass("active");
+      }
+
+      async function initGame(color) {
+        playerColor = color;
+        cboard.orientation(color === "w" ? "white" : "black");
+        $("#color-modal").removeClass("active");
+
+        const res = await fetch("/reset", { method: "POST" });
         cboard.position("start", false);
         clearHighlights();
         selected = null;
         pendingPromo = null;
-        legalCache = {};
         thinking = false;
         $("#status").text("");
+
+        if (color === "b") {
+          await triggerEngineMove();
+        } else {
+          await loadLegalMoves();
+        }
       }
 
-      // reset on load
-      doReset();
+      $("#choose-white").on("click", () => initGame("w"));
+      $("#choose-black").on("click", () => initGame("b"));
+
+      $("#restart-btn").on("click", () => showColorModal());
+
+      showColorModal();
     </script>
   </body>
 </html>

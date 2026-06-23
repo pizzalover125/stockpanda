@@ -290,7 +290,7 @@ def minimax(board, depth, alpha, beta, maximizing, deadline, tt):
     if depth == 0:
         return quiescence(board, alpha, beta, maximizing, deadline), None
 
-    key = chess.polyglot.zobrist_hash(board)
+    key = board._transposition_key()
     tt_entry = tt.get(key)
     tt_move = tt_entry.best_move if tt_entry else None  # from a previous iteration, or none
 
@@ -432,14 +432,29 @@ def get_tablebase_move(board):
 
 # iterative-deepening: search increasing depths until time runs out
 def get_engine_move(board, max_depth=MAX_DEPTH, time_limit=TIME_LIMIT):
+    start_time = time.time()
+    
+    # helper to return move with minimum delay
+    def return_with_delay(move):
+        elapsed = time.time() - start_time
+        if elapsed < 1.0:
+            time.sleep(1.0 - elapsed)
+        return move
+
     book_move = get_book_move(board)
     if book_move is not None:
         print(f"[book] {book_move}")
-        return book_move
+        board.push(book_move)
+        score = evaluate(board)
+        board.pop()
+        return return_with_delay(book_move), score
 
     tb_move = get_tablebase_move(board)
     if tb_move is not None:
-        return tb_move
+        board.push(tb_move)
+        score = evaluate(board)
+        board.pop()
+        return return_with_delay(tb_move), score
 
     deadline = time.time() + time_limit
     tt = TranspositionTable()
@@ -464,10 +479,15 @@ def get_engine_move(board, max_depth=MAX_DEPTH, time_limit=TIME_LIMIT):
         if abs(score) >= MATE_SCORE:
             break
 
-    # if depth 1 didn't finish: grab any legal move (this would only happen if the time limit is very low or the position has a huge branching factor)
+    # if depth 1 didn't finish: grab any legal move
     if best_move is None:
         best_move = next(iter(board.legal_moves), None)
+        if best_move is not None:
+            board.push(best_move)
+            best_score = evaluate(board)
+            board.pop()
 
     # debug line 
     print(f"[engine] depth {completed_depth}  eval {best_score / 100:+.2f} (white's view)  move {best_move}")
-    return best_move 
+    return return_with_delay(best_move), best_score
+
