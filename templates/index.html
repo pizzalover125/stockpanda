@@ -14,7 +14,10 @@
       html,
       body {
         margin: 0;
-        height: 100%;
+        padding: 0;
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -31,20 +34,25 @@
           sans-serif;
       }
 
+      :root {
+        --board-light: #eeeed2;
+        --board-dark: #769656;
+      }
+
       .white-1e1d7 {
-        background-color: #eeeed2 !important;
+        background-color: var(--board-light) !important;
       }
 
       .black-3c85d {
-        background-color: #769656 !important;
+        background-color: var(--board-dark) !important;
       }
 
       .white-1e1d7 .notation-322f9 {
-        color: #769656 !important;
+        color: var(--board-dark) !important;
       }
 
       .black-3c85d .notation-322f9 {
-        color: #eeeed2 !important;
+        color: var(--board-light) !important;
       }
 
       .highlight {
@@ -86,12 +94,80 @@
         transform: scale(1.1);
       }
 
-      #board {
+      .board-wrapper {
         width: 40vw;
+        max-width: min(600px, calc(100vh - 160px));
+        min-width: 240px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      @media (max-width: 768px) {
+        .board-wrapper {
+          width: 90vw;
+          max-width: min(100%, calc(100vh - 160px));
+          min-width: 240px;
+        }
+      }
+
+      #board {
+        width: 100%;
         border: none;
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-        border-radius: 4px;
+        border-radius: 6px;
         overflow: hidden;
+      }
+
+      .player-panel {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 18px;
+        background: rgba(38, 36, 33, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        color: #bababa;
+      }
+
+      .player-name {
+        font-weight: 600;
+        font-size: 1.05rem;
+      }
+
+      .timer {
+        font-family: monospace;
+        font-size: 1.35rem;
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.25);
+        color: #fff;
+        min-width: 65px;
+        text-align: center;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+      }
+
+      .timer.active {
+        background: #769656;
+        color: #fff;
+        box-shadow: 0 0 12px rgba(118, 150, 86, 0.4);
+      }
+
+      .timer.low-time {
+        background: #a94442;
+        box-shadow: 0 0 12px rgba(169, 68, 66, 0.4);
+        animation: pulse-timer 1s infinite alternate;
+      }
+
+      @keyframes pulse-timer {
+        from {
+          opacity: 1;
+        }
+        to {
+          opacity: 0.7;
+        }
       }
 
       #status {
@@ -104,7 +180,7 @@
 
       .game-container {
         display: flex;
-        align-items: stretch;
+        align-items: center;
         justify-content: center;
         gap: 12px;
       }
@@ -143,6 +219,8 @@
           inset 0 1px 0 rgba(255, 255, 255, 0.1);
         max-width: 480px;
         width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
         transform: scale(0.9);
         transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
       }
@@ -265,50 +343,352 @@
       .btn-premium:active {
         transform: translateY(0);
       }
-    </style>
-  </head>
-  <body>
-    <div
-      style="
-        text-align: center;
+
+      .setting-section {
+        margin-bottom: 24px;
+        text-align: left;
+      }
+      .setting-label {
+        font-size: 0.9rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #8b8986;
+        margin-bottom: 12px;
+      }
+      .time-options {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .time-btn {
+        flex: 1;
+        background: rgba(48, 46, 44, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 10px 12px;
+        color: #bababa;
+        font-family: "Outfit", sans-serif;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.25s ease;
+      }
+      .time-btn:hover {
+        border-color: rgba(255, 255, 255, 0.15);
+        color: #fff;
+        background: rgba(48, 46, 44, 0.8);
+      }
+      .time-btn.active {
+        background: #769656;
+        border-color: #769656;
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(118, 150, 86, 0.25);
+      }
+
+      .board-theme-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+      }
+
+      .theme-swatch {
+        aspect-ratio: 1;
+        border: 2px solid rgba(255, 255, 255, 0.05);
+        border-radius: 6px;
+        background: none;
+        padding: 0;
+        cursor: pointer;
+        overflow: hidden;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .theme-swatch:hover {
+        transform: scale(1.08);
+        border-color: rgba(255, 255, 255, 0.3);
+      }
+
+      .theme-swatch.active {
+        border-color: #fff;
+        box-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
+        transform: scale(1);
+      }
+
+      .swatch-grid-2x2 {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: repeat(2, 1fr);
+        width: 100%;
+        height: 100%;
+      }
+
+      .swatch-square {
+        width: 100%;
+        height: 100%;
+      }
+
+      .piece-theme-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+      }
+
+      .piece-card {
+        background: rgba(48, 46, 44, 0.4);
+        border: 2px solid rgba(255, 255, 255, 0.04);
+        border-radius: 12px;
+        padding: 12px 8px;
+        cursor: pointer;
         display: flex;
         flex-direction: column;
         align-items: center;
-      "
+        gap: 8px;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        font-family: "Outfit", sans-serif;
+      }
+
+      .piece-card:hover {
+        background: rgba(48, 46, 44, 0.7);
+        border-color: rgba(255, 255, 255, 0.15);
+        transform: translateY(-2px);
+      }
+
+      .piece-card.active {
+        background: rgba(118, 150, 86, 0.12);
+        border-color: #769656;
+        box-shadow: 0 4px 15px rgba(118, 150, 86, 0.15);
+      }
+
+      .piece-preview-img {
+        width: 44px;
+        height: 44px;
+        filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.25));
+        transition: transform 0.2s;
+        pointer-events: none;
+      }
+
+      .piece-card:hover .piece-preview-img {
+        transform: scale(1.1);
+      }
+
+      .piece-name-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #bababa;
+        pointer-events: none;
+      }
+
+      .piece-card.active .piece-name-label {
+        color: #fff;
+      }
+
+      .game-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        max-width: 600px;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+
+      .settings-btn-top-right {
+        position: fixed;
+        top: 24px;
+        right: 24px;
+        background: rgba(48, 46, 44, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: #bababa;
+        cursor: pointer;
+        padding: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        z-index: 900;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      }
+      .settings-btn-top-right:hover {
+        color: #fff;
+        background: rgba(60, 58, 56, 0.9);
+        border-color: rgba(255, 255, 255, 0.2);
+        transform: scale(1.05) rotate(30deg);
+      }
+      #settings-modal .modal-content {
+        max-width: 380px;
+        padding: 24px 28px;
+        border-radius: 16px;
+        overflow: hidden;
+      }
+
+      #settings-modal .modal-title {
+        font-size: 1.5rem;
+        margin-bottom: 16px;
+      }
+
+      #settings-modal .setting-section {
+        margin-bottom: 16px;
+      }
+
+      #settings-modal .setting-label {
+        font-size: 0.8rem;
+        margin-bottom: 8px;
+      }
+
+      #settings-modal .board-theme-grid {
+        grid-template-columns: repeat(8, 1fr);
+        gap: 8px;
+      }
+
+      #settings-modal .piece-theme-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+
+      #settings-modal .piece-card {
+        padding: 8px 4px;
+        border-radius: 8px;
+        gap: 4px;
+      }
+
+      #settings-modal .piece-preview-img {
+        width: 32px;
+        height: 32px;
+      }
+
+      #settings-modal .piece-name-label {
+        font-size: 0.7rem;
+      }
+
+      #settings-modal .btn-premium {
+        padding: 10px 20px;
+        font-size: 0.95rem;
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <button
+      id="open-settings-btn"
+      class="settings-btn-top-right"
+      aria-label="Settings"
     >
-      <div class="game-container">
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="12" r="3"></circle>
+        <path
+          d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+        ></path>
+      </svg>
+    </button>
+
+    <div class="game-container">
+      <div class="board-wrapper">
+        <div class="player-panel opponent-panel">
+          <span class="player-name">stockpanda</span>
+          <div class="timer" id="opponent-timer">--:--</div>
+        </div>
         <div id="board"></div>
+        <div class="player-panel user-panel">
+          <span class="player-name">You</span>
+          <div class="timer" id="player-timer">--:--</div>
+        </div>
       </div>
-      <p id="status"></p>
-      <button id="restart-btn" class="btn-premium">New Game</button>
     </div>
+
+    <p id="status" style="display: none"></p>
 
     <div id="promo-modal"></div>
 
     <div id="color-modal" class="modal-overlay">
       <div class="modal-content">
-        <h2 class="modal-title">Choose Your Side</h2>
-        <p class="modal-subtitle">
-          Pick a side to start a new game against stockpanda
-        </p>
-        <div class="choice-container">
-          <div class="choice-card choice-white" id="choose-white">
-            <img
-              src="https://chessboardjs.com/img/chesspieces/wikipedia/wK.png"
-              class="choice-icon"
-              alt="White King"
-            />
-            <span class="choice-label">Play White</span>
-          </div>
-          <div class="choice-card choice-black" id="choose-black">
-            <img
-              src="https://chessboardjs.com/img/chesspieces/wikipedia/bK.png"
-              class="choice-icon"
-              alt="Black King"
-            />
-            <span class="choice-label">Play Black</span>
+        <h2 class="modal-title">New Game</h2>
+        <p class="modal-subtitle">Configure your game settings</p>
+
+        <div class="setting-section">
+          <div class="setting-label">Time Control</div>
+          <div class="time-options">
+            <button class="time-btn" data-time="60">1 Min</button>
+            <button class="time-btn active" data-time="180">3 Min</button>
+            <button class="time-btn" data-time="300">5 Min</button>
+            <button class="time-btn" data-time="600">10 Min</button>
+            <button class="time-btn" data-time="0">No Limit</button>
           </div>
         </div>
+
+        <div class="setting-section">
+          <div class="setting-label">Play As</div>
+          <div class="choice-container">
+            <div class="choice-card choice-white" id="choose-white">
+              <img
+                src="https://chessboardjs.com/img/chesspieces/wikipedia/wK.png"
+                class="choice-icon"
+                alt="White King"
+              />
+              <span class="choice-label">Play White</span>
+            </div>
+            <div class="choice-card choice-black" id="choose-black">
+              <img
+                src="https://chessboardjs.com/img/chesspieces/wikipedia/bK.png"
+                class="choice-icon"
+                alt="Black King"
+              />
+              <span class="choice-label">Play Black</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="game-over-modal" class="modal-overlay">
+      <div class="modal-content">
+        <h2 class="modal-title">Game Over!</h2>
+        <p
+          class="modal-subtitle"
+          id="game-over-reason"
+          style="
+            font-size: 1.35rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 32px;
+          "
+        ></p>
+        <button id="game-over-new-game-btn" class="btn-premium">
+          New Game
+        </button>
+      </div>
+    </div>
+
+    <div id="settings-modal" class="modal-overlay">
+      <div class="modal-content" style="max-width: 440px">
+        <h2 class="modal-title" style="margin-bottom: 24px">Settings</h2>
+
+        <div class="setting-section">
+          <div class="setting-label">Board Theme</div>
+          <div class="board-theme-grid" id="board-themes-container"></div>
+        </div>
+
+        <div class="setting-section" style="margin-bottom: 32px">
+          <div class="setting-label">Piece Style</div>
+          <div class="piece-theme-grid" id="piece-themes-container"></div>
+        </div>
+
+        <button
+          id="close-settings-btn"
+          class="btn-premium"
+          style="width: 100%; margin-top: 0"
+        >
+          Done
+        </button>
       </div>
     </div>
 
@@ -483,14 +863,65 @@
         }
       }
 
-      const PIECE_URL =
-        "https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png";
+      const boardThemes = {
+        classic: { name: "Classic Green", light: "#eeeed2", dark: "#769656" },
+        wood: { name: "Wood Walnut", light: "#f0d9b5", dark: "#b58863" },
+        ocean: { name: "Ocean Blue", light: "#dee3e6", dark: "#8ca2ad" },
+        grape: { name: "Grape Purple", light: "#f1e5f5", dark: "#7d4a8f" },
+        charcoal: { name: "Charcoal Dark", light: "#b8b8b8", dark: "#474747" },
+        sunset: { name: "Sunset Orange", light: "#f0d2b5", dark: "#d48863" },
+        cherry: { name: "Cherry Red", light: "#f5e4e4", dark: "#b83b3b" },
+        arctic: { name: "Arctic Ice", light: "#e2eafc", dark: "#3d5a80" },
+      };
+
+      const pieceThemes = {
+        wikipedia: {
+          name: "Wikipedia",
+          url: "https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png",
+        },
+        cburnett: {
+          name: "Cburnett",
+          url: "https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/cburnett/{piece}.svg",
+        },
+        merida: {
+          name: "Merida",
+          url: "https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/merida/{piece}.svg",
+        },
+        chessnut: {
+          name: "Chessnut",
+          url: "https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/chessnut/{piece}.svg",
+        },
+        pixel: {
+          name: "Pixel",
+          url: "https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/pixel/{piece}.svg",
+        },
+        fantasy: {
+          name: "Fantasy",
+          url: "https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/fantasy/{piece}.svg",
+        },
+      };
+
+      let currentBoardTheme =
+        localStorage.getItem("stockpanda_board_theme") || "classic";
+      let currentPieceTheme =
+        localStorage.getItem("stockpanda_piece_theme") || "wikipedia";
+
+      function getPieceUrl(piece) {
+        return pieceThemes[currentPieceTheme].url.replace("{piece}", piece);
+      }
+
+      let PIECE_URL = pieceThemes[currentPieceTheme].url;
       let cboard,
         selected = null,
         pendingPromo = null,
         legalCache = {},
         thinking = false,
-        playerColor = null;
+        playerColor = null,
+        totalTimeLimit = 180,
+        playerTimeRemaining = 180,
+        opponentTimeRemaining = 180,
+        activeTimerInterval = null,
+        activeTurn = "w";
 
       function clearHighlights() {
         $("#board .square-55d63").removeClass("highlight selected");
@@ -505,16 +936,116 @@
         return legalCache[square] || [];
       }
 
+      function formatTime(seconds) {
+        if (seconds <= 0) return "00:00";
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+      }
+
+      function updateTimerDisplays() {
+        if (totalTimeLimit === 0) {
+          $("#player-timer").text("--:--").removeClass("active low-time");
+          $("#opponent-timer").text("--:--").removeClass("active low-time");
+          return;
+        }
+
+        $("#player-timer").text(formatTime(playerTimeRemaining));
+        $("#opponent-timer").text(formatTime(opponentTimeRemaining));
+
+        if (thinking) {
+          $("#opponent-timer").addClass("active");
+          $("#player-timer").removeClass("active");
+
+          if (opponentTimeRemaining < 20) {
+            $("#opponent-timer").addClass("low-time");
+          } else {
+            $("#opponent-timer").removeClass("low-time");
+          }
+          $("#player-timer").removeClass("low-time");
+        } else {
+          if (activeTurn === playerColor) {
+            $("#player-timer").addClass("active");
+            $("#opponent-timer").removeClass("active");
+
+            if (playerTimeRemaining < 20) {
+              $("#player-timer").addClass("low-time");
+            } else {
+              $("#player-timer").removeClass("low-time");
+            }
+            $("#opponent-timer").removeClass("low-time");
+          } else {
+            $("#opponent-timer").addClass("active");
+            $("#player-timer").removeClass("active");
+
+            if (opponentTimeRemaining < 20) {
+              $("#opponent-timer").addClass("low-time");
+            } else {
+              $("#opponent-timer").removeClass("low-time");
+            }
+            $("#player-timer").removeClass("low-time");
+          }
+        }
+      }
+
+      function handleTimeOut(isPlayer) {
+        clearInterval(activeTimerInterval);
+        thinking = true;
+        legalCache = {};
+        clearHighlights();
+
+        if (isPlayer) {
+          $("#status").text("Game over - You lost on time!");
+          chessAudio.play("defeat", false);
+        } else {
+          $("#status").text("Game over - stockpanda lost on time!");
+          chessAudio.play("victory", true);
+        }
+        updateTimerDisplays();
+      }
+
+      function startTimer() {
+        clearInterval(activeTimerInterval);
+        if (totalTimeLimit === 0) return;
+
+        activeTimerInterval = setInterval(() => {
+          if (thinking) {
+            opponentTimeRemaining--;
+            if (opponentTimeRemaining <= 0) {
+              opponentTimeRemaining = 0;
+              handleTimeOut(false);
+            }
+          } else {
+            if (activeTurn === playerColor) {
+              playerTimeRemaining--;
+              if (playerTimeRemaining <= 0) {
+                playerTimeRemaining = 0;
+                handleTimeOut(true);
+              }
+            } else {
+              opponentTimeRemaining--;
+              if (opponentTimeRemaining <= 0) {
+                opponentTimeRemaining = 0;
+                handleTimeOut(false);
+              }
+            }
+          }
+          updateTimerDisplays();
+        }, 1000);
+      }
+
       async function triggerEngineMove() {
         thinking = true;
-        $("#status").text("stockpanda is thinking...");
+        updateTimerDisplays();
         try {
           const res = await fetch("/engine_move", { method: "POST" });
           const d = await res.json();
+          activeTurn = d.fen.split(" ")[1];
           cboard.position(d.fen.split(" ")[0], true);
-          $("#status").text(d.over ? "Game over!" : "");
 
           if (d.over) {
+            clearInterval(activeTimerInterval);
+            showGameOverModal(d.reason || "Game Over!");
             legalCache = {};
           } else {
             await loadLegalMoves();
@@ -525,6 +1056,7 @@
           console.error("Engine move failed:", e);
         } finally {
           thinking = false;
+          updateTimerDisplays();
         }
       }
 
@@ -539,16 +1071,20 @@
         const d = await res.json();
         if (d.error) return;
 
+        activeTurn = d.fen.split(" ")[1];
         cboard.position(d.fen.split(" ")[0], true);
         legalCache = {};
 
         playMoveSound(d, true);
 
         if (d.over) {
-          $("#status").text("Game over!");
+          clearInterval(activeTimerInterval);
+          showGameOverModal(d.reason || "Game Over!");
+          updateTimerDisplays();
           return;
         }
 
+        // now ask the engine for its reply
         await triggerEngineMove();
       }
 
@@ -627,7 +1163,7 @@
       cboard = Chessboard("board", {
         draggable: true,
         position: "start",
-        pieceTheme: PIECE_URL,
+        pieceTheme: getPieceUrl,
         onDragStart: (source, piece) => {
           if (!playerColor || piece[0] !== playerColor || thinking)
             return false;
@@ -653,18 +1189,40 @@
         $("#color-modal").addClass("active");
       }
 
+      function showGameOverModal(message) {
+        $("#game-over-reason").text(message);
+        $("#game-over-modal").addClass("active");
+      }
+
       async function initGame(color) {
         playerColor = color;
         cboard.orientation(color === "w" ? "white" : "black");
         $("#color-modal").removeClass("active");
+        $("#game-over-modal").removeClass("active");
+
+        const selectedSeconds = parseInt(
+          $(".time-btn.active").attr("data-time") || "180",
+        );
+        totalTimeLimit = selectedSeconds;
+        playerTimeRemaining = selectedSeconds;
+        opponentTimeRemaining = selectedSeconds;
+        activeTurn = "w";
+
+        clearInterval(activeTimerInterval);
 
         const res = await fetch("/reset", { method: "POST" });
+        const d = await res.json();
+        activeTurn = d.fen.split(" ")[1];
+
         cboard.position("start", false);
         clearHighlights();
         selected = null;
         pendingPromo = null;
         thinking = false;
         $("#status").text("");
+
+        updateTimerDisplays();
+        startTimer();
 
         if (color === "b") {
           await triggerEngineMove();
@@ -676,8 +1234,115 @@
       $("#choose-white").on("click", () => initGame("w"));
       $("#choose-black").on("click", () => initGame("b"));
 
-      $("#restart-btn").on("click", () => showColorModal());
+      $("#game-over-new-game-btn").on("click", () => {
+        $("#game-over-modal").removeClass("active");
+        showColorModal();
+      });
 
+      $(".time-btn").on("click", function () {
+        $(".time-btn").removeClass("active");
+        $(this).addClass("active");
+      });
+
+      $("#open-settings-btn").on("click", () => {
+        $("#settings-modal").addClass("active");
+      });
+
+      $("#close-settings-btn").on("click", () => {
+        $("#settings-modal").removeClass("active");
+      });
+
+      function setBoardTheme(themeKey) {
+        currentBoardTheme = themeKey;
+        const theme = boardThemes[themeKey] || boardThemes.classic;
+        document.documentElement.style.setProperty(
+          "--board-light",
+          theme.light,
+        );
+        document.documentElement.style.setProperty("--board-dark", theme.dark);
+
+        $(".theme-swatch").removeClass("active");
+        $(`.theme-swatch[data-board-theme="${themeKey}"]`).addClass("active");
+
+        localStorage.setItem("stockpanda_board_theme", themeKey);
+      }
+
+      function setPieceTheme(themeKey) {
+        currentPieceTheme = themeKey;
+        PIECE_URL = pieceThemes[themeKey].url;
+
+        $(".piece-card").removeClass("active");
+        $(`.piece-card[data-piece-theme="${themeKey}"]`).addClass("active");
+
+        $("#board img").each(function () {
+          const piece = $(this).attr("data-piece");
+          if (piece) {
+            $(this).attr("src", getPieceUrl(piece));
+          }
+        });
+
+        localStorage.setItem("stockpanda_piece_theme", themeKey);
+      }
+
+      function initializeThemeMenus() {
+        const boardContainer = $("#board-themes-container");
+        boardContainer.empty();
+        Object.entries(boardThemes).forEach(([key, theme]) => {
+          const grid = $("<div>")
+            .addClass("swatch-grid-2x2")
+            .append(
+              $("<div>")
+                .addClass("swatch-square")
+                .css("background-color", theme.light),
+            )
+            .append(
+              $("<div>")
+                .addClass("swatch-square")
+                .css("background-color", theme.dark),
+            )
+            .append(
+              $("<div>")
+                .addClass("swatch-square")
+                .css("background-color", theme.dark),
+            )
+            .append(
+              $("<div>")
+                .addClass("swatch-square")
+                .css("background-color", theme.light),
+            );
+
+          const swatch = $("<button>")
+            .addClass("theme-swatch")
+            .attr("data-board-theme", key)
+            .attr("title", theme.name)
+            .append(grid)
+            .on("click", () => setBoardTheme(key));
+          boardContainer.append(swatch);
+        });
+
+        const pieceContainer = $("#piece-themes-container");
+        pieceContainer.empty();
+        Object.entries(pieceThemes).forEach(([key, theme]) => {
+          const previewUrl = theme.url.replace("{piece}", "wN");
+          const card = $("<button>")
+            .addClass("piece-card")
+            .attr("data-piece-theme", key)
+            .append(
+              $("<img>")
+                .addClass("piece-preview-img")
+                .attr("src", previewUrl)
+                .attr("alt", theme.name),
+            )
+            .append($("<span>").addClass("piece-name-label").text(theme.name))
+            .on("click", () => setPieceTheme(key));
+          pieceContainer.append(card);
+        });
+
+        setBoardTheme(currentBoardTheme);
+        setPieceTheme(currentPieceTheme);
+      }
+
+      initializeThemeMenus();
       showColorModal();
     </script>
   </body>

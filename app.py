@@ -5,6 +5,22 @@ from engine import get_engine_move, evaluate
 app = Flask(__name__)
 board = chess.Board()
 
+def get_game_over_reason(b):
+    if b.is_checkmate():
+        winner = "Black" if b.turn == chess.WHITE else "White"
+        return f"{winner} won by checkmate"
+    elif b.is_stalemate():
+        return "Draw by stalemate"
+    elif b.is_insufficient_material():
+        return "Draw by insufficient material"
+    elif hasattr(b, "is_fivefold_repetition") and b.is_fivefold_repetition():
+        return "Draw by repetition"
+    elif hasattr(b, "is_fifty_moves") and b.is_fifty_moves():
+        return "Draw by fifty-move rule"
+    elif b.is_game_over():
+        return "Draw"
+    return ""
+
 # show index.html
 @app.route("/")
 def index():
@@ -63,6 +79,7 @@ def move():
     is_checkmate = board.is_checkmate()
     is_draw = board.is_game_over() and not is_checkmate
     score = evaluate(board)
+    reason = get_game_over_reason(board) if board.is_game_over() else ""
 
     return jsonify(
         fen=board.fen(),
@@ -73,7 +90,8 @@ def move():
         is_check=is_check,
         is_checkmate=is_checkmate,
         is_draw=is_draw,
-        score=score
+        score=score,
+        reason=reason
     )
 
 @app.route("/engine_move", methods=["POST"])
@@ -91,6 +109,7 @@ def engine_move():
     is_check = board.is_check()
     is_checkmate = board.is_checkmate()
     is_draw = board.is_game_over() and not is_checkmate
+    reason = get_game_over_reason(board) if board.is_game_over() else ""
 
     return jsonify(
         fen=board.fen(),
@@ -101,14 +120,19 @@ def engine_move():
         is_check=is_check,
         is_checkmate=is_checkmate,
         is_draw=is_draw,
-        score=score
+        score=score,
+        reason=reason
     )
 
 # reset the game
 @app.route("/reset", methods=["POST"])
 def reset():
     board.reset()
-    return jsonify(fen=board.fen(), over=False)
+    return jsonify(
+        fen=board.fen(),
+        over=False,
+        score=evaluate(board)
+    )
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5001)

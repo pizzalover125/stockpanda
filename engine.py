@@ -490,4 +490,3 @@ def get_engine_move(board, max_depth=MAX_DEPTH, time_limit=TIME_LIMIT):
     # debug line 
     print(f"[engine] depth {completed_depth}  eval {best_score / 100:+.2f} (white's view)  move {best_move}")
     return return_with_delay(best_move), best_score
-
