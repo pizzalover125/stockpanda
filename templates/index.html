@@ -3,6 +3,16 @@
   <head>
     <title>stockpanda</title>
     <link
+      rel="icon"
+      type="image/svg+xml"
+      sizes="any"
+      href="https://cdn.hackclub.com/019efa69-df7b-7f06-b1ea-a230cd88e793/stockpanda.svg"
+    />
+    <link
+      rel="apple-touch-icon"
+      href="https://cdn.hackclub.com/019efa69-df7b-7f06-b1ea-a230cd88e793/stockpanda.svg"
+    />
+    <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css"
     />
@@ -66,6 +76,11 @@
 
       .selected {
         background: rgba(247, 247, 105, 0.5) !important;
+      }
+
+      .premove-highlight {
+        background: rgba(244, 91, 105, 0.4) !important;
+        box-shadow: inset 0 0 0 3px rgba(244, 91, 105, 0.75) !important;
       }
 
       .annotated-square-red {
@@ -1158,7 +1173,9 @@
         playerTimeRemaining = 180,
         opponentTimeRemaining = 180,
         activeTimerInterval = null,
-        activeTurn = "w";
+        activeTurn = "w",
+        lastActualFen = null,
+        currentPremove = null;
 
       let moveHistory = [];
 
@@ -1344,6 +1361,75 @@
         $("#board .square-55d63").removeClass("highlight selected");
       }
 
+      function clearPremoveHighlights() {
+        $("#board .square-55d63").removeClass("premove-highlight");
+      }
+
+      function setPremove(from, to) {
+        if (currentPremove) {
+          clearPremoveHighlights();
+        }
+        currentPremove = { from, to };
+        $(`#board .square-${from}`).addClass("premove-highlight");
+        $(`#board .square-${to}`).addClass("premove-highlight");
+      }
+
+      function clearPremove() {
+        if (!currentPremove) return;
+        currentPremove = null;
+        clearPremoveHighlights();
+        if (lastActualFen) {
+          cboard.position(lastActualFen.split(" ")[0], true);
+        }
+      }
+
+      async function applyPremove(uci) {
+        const res = await fetch("/move", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ move: uci, promotion: "q" }),
+        });
+
+        if (res.status === 400) {
+          currentPremove = null;
+          clearPremoveHighlights();
+          cboard.position(lastActualFen.split(" ")[0], true);
+          await loadLegalMoves();
+          return;
+        }
+
+        const d = await res.json();
+        if (d.error) {
+          currentPremove = null;
+          clearPremoveHighlights();
+          cboard.position(lastActualFen.split(" ")[0], true);
+          await loadLegalMoves();
+          return;
+        }
+
+        currentPremove = null;
+        clearPremoveHighlights();
+
+        activeTurn = d.fen.split(" ")[1];
+        lastActualFen = d.fen;
+        cboard.position(d.fen.split(" ")[0], true);
+        legalCache = {};
+
+        const moveColor = playerColor;
+        addMoveToHistory(d.san, moveColor, d.score);
+
+        playMoveSound(d, true);
+
+        if (d.over) {
+          clearInterval(activeTimerInterval);
+          showGameOverModal(d.reason || "Game Over!");
+          updateTimerDisplays();
+          return;
+        }
+
+        await triggerEngineMove();
+      }
+
       async function loadLegalMoves() {
         const res = await fetch("/legal");
         legalCache = (await res.json()).moves;
@@ -1463,20 +1549,34 @@
           const res = await fetch("/engine_move", { method: "POST" });
           const d = await res.json();
           activeTurn = d.fen.split(" ")[1];
-          cboard.position(d.fen.split(" ")[0], true);
+          lastActualFen = d.fen;
 
           const moveColor = playerColor === "w" ? "b" : "w";
-          addMoveToHistory(d.san, moveColor, d.score);
 
           if (d.over) {
             clearInterval(activeTimerInterval);
+            cboard.position(d.fen.split(" ")[0], true);
+            addMoveToHistory(d.san, moveColor, d.score);
+            playMoveSound(d, false);
             showGameOverModal(d.reason || "Game Over!");
             legalCache = {};
-          } else {
-            await loadLegalMoves();
+            currentPremove = null;
+            clearPremoveHighlights();
+            return;
           }
 
-          playMoveSound(d, false);
+          if (currentPremove) {
+            const premoveUci = currentPremove.from + currentPremove.to;
+            cboard.position(d.fen.split(" ")[0], false);
+            addMoveToHistory(d.san, moveColor, d.score);
+            playMoveSound(d, false);
+            await applyPremove(premoveUci);
+          } else {
+            cboard.position(d.fen.split(" ")[0], true);
+            addMoveToHistory(d.san, moveColor, d.score);
+            playMoveSound(d, false);
+            await loadLegalMoves();
+          }
         } catch (e) {
           console.error("Engine move failed:", e);
         } finally {
@@ -1497,6 +1597,7 @@
         if (d.error) return;
 
         activeTurn = d.fen.split(" ")[1];
+        lastActualFen = d.fen;
         cboard.position(d.fen.split(" ")[0], true);
         legalCache = {};
 
@@ -1553,7 +1654,61 @@
       }
 
       async function squareClick(square) {
-        if (!playerColor || thinking) return;
+        if (!playerColor) return;
+
+        const isMyTurn = activeTurn === playerColor && !thinking;
+
+        if (!isMyTurn) {
+          if (currentPremove) {
+            clearPremove();
+            const piece = cboard.position()[square];
+            if (piece && piece[0] === playerColor) {
+              selected = square;
+              $(`#board .square-${square}`).addClass("selected");
+            }
+            return;
+          }
+
+          if (justDeselected === square) {
+            justDeselected = null;
+            clearHighlights();
+            selected = null;
+            return;
+          }
+          justDeselected = null;
+
+          if (selected === square) {
+            clearHighlights();
+            selected = null;
+            return;
+          }
+
+          if (selected) {
+            const from = selected;
+            const piece = cboard.position()[square];
+            if (piece && piece[0] === playerColor) {
+              clearHighlights();
+              selected = square;
+              $(`#board .square-${square}`).addClass("selected");
+              return;
+            }
+
+            clearHighlights();
+            selected = null;
+
+            cboard.move(`${from}-${square}`);
+            setPremove(from, square);
+            return;
+          }
+
+          const piece = cboard.position()[square];
+          if (!piece || piece[0] !== playerColor) return;
+
+          selected = square;
+          clearHighlights();
+          $(`#board .square-${square}`).addClass("selected");
+          return;
+        }
 
         if (justDeselected === square) {
           justDeselected = null;
@@ -1657,6 +1812,11 @@
           if (e.button === 2) {
             e.preventDefault();
             e.stopPropagation();
+            if (currentPremove) {
+              clearPremove();
+              annotationStartSq = null;
+              return;
+            }
             const $sq = $(e.target).closest(".square-55d63");
             const sq = $sq.length ? $sq.attr("data-square") : null;
             if (annotationStartSq && sq) {
@@ -1805,8 +1965,21 @@
         position: "start",
         pieceTheme: getPieceUrl,
         onDragStart: (source, piece) => {
-          if (!playerColor || piece[0] !== playerColor || thinking)
-            return false;
+          if (!playerColor || piece[0] !== playerColor) return false;
+
+          const isMyTurn = activeTurn === playerColor && !thinking;
+
+          if (!isMyTurn) {
+            if (currentPremove) {
+              clearPremove();
+            }
+            justDeselected = null;
+            clearHighlights();
+            selected = null;
+            $(`#board .square-${source}`).addClass("selected");
+            return true;
+          }
+
           const wasSelected = selected === source;
           justDeselected = null;
           clearHighlights();
@@ -1828,6 +2001,14 @@
           }
           justDeselected = null;
           clearHighlights();
+
+          const isMyTurn = activeTurn === playerColor && !thinking;
+
+          if (!isMyTurn) {
+            setPremove(source, target);
+            return;
+          }
+
           const moves = getLegal(source);
           if (!moves.includes(target)) return "snapback";
           handleMove(source, target);
@@ -1865,6 +2046,7 @@
         const res = await fetch("/reset", { method: "POST" });
         const d = await res.json();
         activeTurn = d.fen.split(" ")[1];
+        lastActualFen = d.fen;
 
         cboard.position("start", false);
         clearHighlights();
@@ -1873,6 +2055,9 @@
         pendingPromo = null;
         thinking = false;
         $("#status").text("");
+
+        currentPremove = null;
+        clearPremoveHighlights();
 
         moveHistory = [];
         updateMoveHistoryUI();
@@ -2005,3 +2190,4 @@
     </script>
   </body>
 </html>
+feat: vercel deployment

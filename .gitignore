@@ -25,6 +25,7 @@ instance/
 *.db
 
 *.bin
+!pc2500.bin
 
 *.log
 logs/
@@ -64,3 +65,4 @@ coverage.xml
 *.swp
 *~
 .~lock.*
+.vercel

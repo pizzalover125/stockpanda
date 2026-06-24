@@ -1,2 +1,2 @@
-flask
-chess
+flask>=3.0
+python-chess>=1.999

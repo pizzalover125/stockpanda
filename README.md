@@ -28,6 +28,7 @@ stockfish is the best chess engine in the world. my last name is panda. i combin
 - phase-based evaluation
 - move by clicking
 - board annotations (arrows + square highlighting)
+- premoves
 
 ## planned features
 
