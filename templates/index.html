@@ -117,6 +117,7 @@
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
         border-radius: 6px;
         overflow: hidden;
+        touch-action: none;
       }
 
       .player-panel {
@@ -604,22 +605,101 @@
       }
 
       @media (max-width: 800px) {
+        html,
+        body {
+          height: auto !important;
+          min-height: 100vh;
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+        }
         .game-container {
           flex-direction: column;
           align-items: center;
           gap: 16px;
-          height: auto;
-          max-height: 98vh;
-          overflow-y: auto;
+          padding: 16px 12px 32px 12px;
+          height: auto !important;
+          max-height: none !important;
+          overflow: visible !important;
         }
         .board-wrapper {
           width: 90vw;
-          max-width: min(500px, calc(100vh - 320px));
+          max-width: 500px;
+          min-width: 240px;
+          gap: 10px;
+        }
+        .player-panel {
+          padding: 8px 14px;
+        }
+        .player-name {
+          font-size: 1rem;
+        }
+        .timer {
+          font-size: 1.25rem;
+          padding: 3px 10px;
+          min-width: 60px;
         }
         .move-history-panel {
           width: 90vw !important;
-          max-width: min(500px, calc(100vh - 320px)) !important;
-          height: 180px !important;
+          max-width: 500px !important;
+          height: 200px !important;
+        }
+        .settings-btn-top-right {
+          top: 12px !important;
+          right: 12px !important;
+          padding: 8px !important;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .modal-content {
+          padding: 24px 16px !important;
+          width: 92% !important;
+          border-radius: 16px !important;
+        }
+        .modal-title {
+          font-size: 1.75rem !important;
+          margin-bottom: 8px !important;
+        }
+        .modal-subtitle {
+          font-size: 0.95rem !important;
+          margin-bottom: 20px !important;
+        }
+        .choice-container {
+          gap: 12px !important;
+        }
+        .choice-card {
+          padding: 16px 8px !important;
+          border-radius: 12px !important;
+          gap: 10px !important;
+        }
+        .choice-icon {
+          width: 60px !important;
+          height: 60px !important;
+        }
+        .choice-label {
+          font-size: 1rem !important;
+        }
+        #settings-modal .board-theme-grid {
+          grid-template-columns: repeat(4, 1fr) !important;
+          gap: 8px !important;
+        }
+        #settings-modal .piece-theme-grid {
+          grid-template-columns: repeat(2, 1fr) !important;
+          gap: 8px !important;
+        }
+        #settings-modal .piece-card {
+          padding: 6px 4px !important;
+        }
+        #settings-modal .piece-preview-img {
+          width: 28px !important;
+          height: 28px !important;
+        }
+        #settings-modal .piece-name-label {
+          font-size: 0.65rem !important;
+        }
+        #promo-modal img {
+          width: 50px !important;
+          height: 50px !important;
         }
       }
 
@@ -1056,6 +1136,7 @@
       let PIECE_URL = pieceThemes[currentPieceTheme].url;
       let cboard,
         selected = null,
+        justDeselected = null,
         pendingPromo = null,
         legalCache = {},
         thinking = false,
@@ -1133,14 +1214,12 @@
           `);
         }
 
-        // Scroll to the bottom of the container
         setTimeout(() => {
           if (list.length && list[0]) {
             list.scrollTop(list[0].scrollHeight);
           }
         }, 10);
 
-        // Update evaluation display
         if (moveHistory.length > 0) {
           const latestMove = moveHistory[moveHistory.length - 1];
           const score = latestMove.score;
@@ -1242,6 +1321,7 @@
           chessAudio.play("victory", true);
         }
         updateTimerDisplays();
+        showGameOverModal(msg);
       }
 
       function startTimer() {
@@ -1371,6 +1451,15 @@
 
       async function squareClick(square) {
         if (!playerColor || thinking) return;
+
+        if (justDeselected === square) {
+          justDeselected = null;
+          clearHighlights();
+          selected = null;
+          return;
+        }
+        justDeselected = null;
+
         if (selected === square) {
           clearHighlights();
           selected = null;
@@ -1380,9 +1469,30 @@
         if (selected) {
           const moves = getLegal(selected);
           const from = selected;
+          if (moves.includes(square)) {
+            clearHighlights();
+            selected = null;
+            await handleMove(from, square);
+            return;
+          }
+
+          const piece = cboard.position()[square];
+          if (piece && piece[0] === playerColor) {
+            clearHighlights();
+            const newMoves = getLegal(square);
+            if (newMoves.length > 0) {
+              selected = square;
+              $(`#board .square-${square}`).addClass("selected");
+              newMoves.forEach((sq) =>
+                $(`#board .square-${sq}`).addClass("highlight"),
+              );
+            } else {
+              selected = null;
+            }
+            return;
+          }
           clearHighlights();
           selected = null;
-          if (moves.includes(square)) await handleMove(from, square);
           return;
         }
 
@@ -1396,15 +1506,143 @@
         moves.forEach((sq) => $(`#board .square-${sq}`).addClass("highlight"));
       }
 
-      $(document).on(
-        "click",
-        "#board .square-55d63, #board .square-55d63 img",
+      let clickStartSquare = null;
+      let clickStartPos = { x: 0, y: 0 };
+      let clickStartTime = 0;
+
+      document.addEventListener(
+        "mousedown",
         function (e) {
-          e.stopPropagation();
-          const sq = $(this).closest(".square-55d63").attr("data-square");
-          if (sq) squareClick(sq);
+          if (!e.isTrusted) return;
+
+          const $sq = $(e.target).closest(".square-55d63");
+          const sq = $sq.length ? $sq.attr("data-square") : null;
+          if (sq) {
+            clickStartSquare = sq;
+            clickStartPos = { x: e.clientX, y: e.clientY };
+            clickStartTime = Date.now();
+          }
         },
+        true,
       );
+
+      document.addEventListener(
+        "mouseup",
+        function (e) {
+          if (!e.isTrusted) return;
+
+          if (clickStartSquare) {
+            const dist = Math.hypot(
+              e.clientX - clickStartPos.x,
+              e.clientY - clickStartPos.y,
+            );
+            const duration = Date.now() - clickStartTime;
+            if (dist < 6 && duration < 500) {
+              squareClick(clickStartSquare);
+              clickStartSquare = null;
+              return;
+            }
+          }
+
+          // Reset drag / select helper flags if we didn't perform a valid click
+          justDeselected = null;
+          clickStartSquare = null;
+        },
+        true,
+      );
+
+      let touchStartPos = { x: 0, y: 0 };
+      let touchStartTime = 0;
+      let hasMoved = false;
+
+      function touchHandler(event) {
+        if (event.touches.length > 1) return;
+
+        const touch = event.changedTouches[0];
+        let type = "";
+
+        switch (event.type) {
+          case "touchstart":
+            type = "mousedown";
+            touchStartPos = { x: touch.clientX, y: touch.clientY };
+            touchStartTime = Date.now();
+            hasMoved = false;
+            break;
+          case "touchmove":
+            type = "mousemove";
+            const dist = Math.hypot(
+              touch.clientX - touchStartPos.x,
+              touch.clientY - touchStartPos.y,
+            );
+            if (dist > 8) {
+              hasMoved = true;
+            }
+            break;
+          case "touchend":
+            type = "mouseup";
+            break;
+          default:
+            return;
+        }
+
+        const simulatedEvent = new MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          detail: 1,
+          screenX: touch.screenX,
+          screenY: touch.screenY,
+          clientX: touch.clientX,
+          clientY: touch.clientY,
+          button: 0,
+          buttons: 1,
+        });
+
+        Object.defineProperty(simulatedEvent, "pageX", {
+          value: touch.pageX,
+          writable: false,
+          configurable: true,
+        });
+        Object.defineProperty(simulatedEvent, "pageY", {
+          value: touch.pageY,
+          writable: false,
+          configurable: true,
+        });
+
+        touch.target.dispatchEvent(simulatedEvent);
+
+        if (event.cancelable) {
+          event.preventDefault();
+        }
+
+        if (
+          event.type === "touchend" &&
+          !hasMoved &&
+          Date.now() - touchStartTime < 350
+        ) {
+          const $sq = $(touch.target).closest(".square-55d63");
+          const sq = $sq.attr("data-square");
+          if (sq) {
+            squareClick(sq);
+          }
+        }
+      }
+
+      function initTouchSupport() {
+        const board = document.getElementById("board");
+        if (board) {
+          board.addEventListener("touchstart", touchHandler, {
+            passive: false,
+          });
+          board.addEventListener("touchmove", touchHandler, { passive: false });
+          board.addEventListener("touchend", touchHandler, { passive: false });
+          board.addEventListener("touchcancel", touchHandler, {
+            passive: false,
+          });
+        }
+      }
+
+      $(document).ready(initTouchSupport);
 
       cboard = Chessboard("board", {
         draggable: true,
@@ -1413,8 +1651,14 @@
         onDragStart: (source, piece) => {
           if (!playerColor || piece[0] !== playerColor || thinking)
             return false;
+          const wasSelected = selected === source;
+          justDeselected = null;
           clearHighlights();
           selected = null;
+          if (wasSelected) {
+            justDeselected = source;
+            return true;
+          }
           const moves = getLegal(source);
           $(`#board .square-${source}`).addClass("selected");
           moves.forEach((sq) =>
@@ -1423,8 +1667,11 @@
           return true;
         },
         onDrop: (source, target) => {
+          if (target === "offboard" || source === target) {
+            return "snapback";
+          }
+          justDeselected = null;
           clearHighlights();
-          if (target === "offboard" || source === target) return "snapback";
           const moves = getLegal(source);
           if (!moves.includes(target)) return "snapback";
           handleMove(source, target);

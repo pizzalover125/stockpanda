@@ -1,5 +1,9 @@
 # notes about chess engines
 
+## what is this?
+
+creating a chess engine requires a lot of preliminary research. this document highlights the main takeaways from my brief, limited research on algorithms for my chess engine.
+
 ## basics
 
 - engine needs eval function to rate a position

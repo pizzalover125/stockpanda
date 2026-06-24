@@ -6,7 +6,16 @@ an open source chess engine built with Python
 
 stockfish is the best chess engine in the world. my last name is panda. i combined the names to come up with "stockpanda"
 
-## features
+## features of the UI
+
+- mobile support
+- board themes
+- piece themes
+- notation
+- time control
+- move by clicking or dragging
+
+## features of the engine
 
 - minimax
 - alpha-beta pruning
@@ -20,10 +29,9 @@ stockfish is the best chess engine in the world. my last name is panda. i combin
 
 ## planned features
 
-- custom piece / board design
-- lichess integration
-- cli tool
-- custom logo
+- sound effects when you interact with UI
+- board annotations (arrows + square highlighting)
+- move by clicking
 
 ## technical info
 
