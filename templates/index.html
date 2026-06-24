@@ -68,6 +68,18 @@
         background: rgba(247, 247, 105, 0.5) !important;
       }
 
+      .annotated-square-red {
+        background: rgba(235, 97, 80, 0.6) !important;
+      }
+
+      .annotated-square-blue {
+        background: rgba(82, 176, 220, 0.6) !important;
+      }
+
+      .annotated-square-green {
+        background: rgba(150, 188, 75, 0.6) !important;
+      }
+
       #promo-modal {
         display: none;
         position: fixed;
@@ -118,6 +130,7 @@
         border-radius: 6px;
         overflow: hidden;
         touch-action: none;
+        position: relative;
       }
 
       .player-panel {
@@ -1149,6 +1162,88 @@
 
       let moveHistory = [];
 
+      let annotatedSquares = new Map();
+      let annotatedArrows = new Map();
+      let annotationStartSq = null;
+
+      function getSquarePos(sq) {
+        let file = sq.charCodeAt(0) - "a".charCodeAt(0);
+        let rank = 8 - parseInt(sq[1]);
+        if (cboard && cboard.orientation() === "black") {
+          file = 7 - file;
+          rank = 7 - rank;
+        }
+        return {
+          x: file * 12.5,
+          y: rank * 12.5,
+          cx: (file + 0.5) * 12.5,
+          cy: (rank + 0.5) * 12.5,
+        };
+      }
+
+      function initAnnotationOverlay() {
+        if ($("#annotation-svg").length === 0) {
+          const svgHTML = `
+          <svg id="annotation-svg" viewBox="0 0 100 100" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;">
+            <defs>
+              <marker id="arrowhead-red" markerWidth="3" markerHeight="3" refX="2.5" refY="1.5" orient="auto">
+                <polygon points="0,0 3,1.5 0,3" fill="rgba(235, 97, 80, 0.8)" />
+              </marker>
+              <marker id="arrowhead-blue" markerWidth="3" markerHeight="3" refX="2.5" refY="1.5" orient="auto">
+                <polygon points="0,0 3,1.5 0,3" fill="rgba(82, 176, 220, 0.8)" />
+              </marker>
+              <marker id="arrowhead-green" markerWidth="3" markerHeight="3" refX="2.5" refY="1.5" orient="auto">
+                <polygon points="0,0 3,1.5 0,3" fill="rgba(150, 188, 75, 0.8)" />
+              </marker>
+            </defs>
+            <g id="annotation-arrows"></g>
+          </svg>`;
+          $("#board").append(svgHTML);
+        }
+      }
+
+      function renderAnnotations() {
+        initAnnotationOverlay();
+        $(".annotated-square-red").removeClass("annotated-square-red");
+        $(".annotated-square-blue").removeClass("annotated-square-blue");
+        $(".annotated-square-green").removeClass("annotated-square-green");
+        const $arrows = $("#annotation-arrows").empty();
+
+        annotatedSquares.forEach((color, sq) => {
+          $(`#board .square-${sq}`).addClass(`annotated-square-${color}`);
+        });
+
+        annotatedArrows.forEach((color, arrow) => {
+          const [from, to] = arrow.split("-");
+          const p1 = getSquarePos(from);
+          const p2 = getSquarePos(to);
+          const line = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "line",
+          );
+          line.setAttribute("x1", p1.cx);
+          line.setAttribute("y1", p1.cy);
+          line.setAttribute("x2", p2.cx);
+          line.setAttribute("y2", p2.cy);
+          let strokeColor = "rgba(235, 97, 80, 0.8)";
+          if (color === "blue") strokeColor = "rgba(82, 176, 220, 0.8)";
+          else if (color === "green") strokeColor = "rgba(150, 188, 75, 0.8)";
+          line.setAttribute("stroke", strokeColor);
+          line.setAttribute("stroke-width", "1.6");
+          line.setAttribute("marker-end", `url(#arrowhead-${color})`);
+          line.setAttribute("opacity", "0.9");
+          $arrows.append(line);
+        });
+      }
+
+      function clearAnnotations() {
+        if (annotatedSquares.size > 0 || annotatedArrows.size > 0) {
+          annotatedSquares.clear();
+          annotatedArrows.clear();
+          renderAnnotations();
+        }
+      }
+
       function resizeMovesPanel() {
         const wrapperEl = $(".board-wrapper");
         const panelEl = $(".move-history-panel");
@@ -1164,7 +1259,14 @@
         }
       }
 
-      $(window).on("resize", resizeMovesPanel);
+      function handleResize() {
+        resizeMovesPanel();
+        if (annotatedSquares.size > 0 || annotatedArrows.size > 0) {
+          renderAnnotations();
+        }
+      }
+
+      $(window).on("resize", handleResize);
 
       function updateEvalDisplay(score) {
         const evalScoreEl = $("#eval-score");
@@ -1440,6 +1542,7 @@
 
       async function handleMove(from, to) {
         clearHighlights();
+        clearAnnotations();
         selected = null;
         if (isPromoMove(from, to)) {
           const piece = cboard.position()[from] || cboard.position()[to];
@@ -1511,13 +1614,33 @@
       let clickStartTime = 0;
 
       document.addEventListener(
+        "contextmenu",
+        function (e) {
+          if ($(e.target).closest("#board").length) {
+            e.preventDefault();
+          }
+        },
+        false,
+      );
+
+      document.addEventListener(
         "mousedown",
         function (e) {
           if (!e.isTrusted) return;
 
+          if (e.button === 0) {
+            clearAnnotations();
+          }
+
           const $sq = $(e.target).closest(".square-55d63");
           const sq = $sq.length ? $sq.attr("data-square") : null;
           if (sq) {
+            if (e.button === 2) {
+              e.preventDefault();
+              e.stopPropagation();
+              annotationStartSq = sq;
+              return;
+            }
             clickStartSquare = sq;
             clickStartPos = { x: e.clientX, y: e.clientY };
             clickStartTime = Date.now();
@@ -1530,6 +1653,39 @@
         "mouseup",
         function (e) {
           if (!e.isTrusted) return;
+
+          if (e.button === 2) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $sq = $(e.target).closest(".square-55d63");
+            const sq = $sq.length ? $sq.attr("data-square") : null;
+            if (annotationStartSq && sq) {
+              const color = e.shiftKey ? "green" : e.altKey ? "blue" : "red";
+              if (annotationStartSq === sq) {
+                if (
+                  annotatedSquares.has(sq) &&
+                  annotatedSquares.get(sq) === color
+                ) {
+                  annotatedSquares.delete(sq);
+                } else {
+                  annotatedSquares.set(sq, color);
+                }
+              } else {
+                const arrow = annotationStartSq + "-" + sq;
+                if (
+                  annotatedArrows.has(arrow) &&
+                  annotatedArrows.get(arrow) === color
+                ) {
+                  annotatedArrows.delete(arrow);
+                } else {
+                  annotatedArrows.set(arrow, color);
+                }
+              }
+              renderAnnotations();
+            }
+            annotationStartSq = null;
+            return;
+          }
 
           if (clickStartSquare) {
             const dist = Math.hypot(
@@ -1712,6 +1868,7 @@
 
         cboard.position("start", false);
         clearHighlights();
+        clearAnnotations();
         selected = null;
         pendingPromo = null;
         thinking = false;
