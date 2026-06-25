@@ -408,6 +408,26 @@
         box-shadow: 0 4px 12px rgba(118, 150, 86, 0.25);
       }
 
+      .custom-time-input {
+        width: 100%;
+        padding: 10px 12px;
+        background: rgba(48, 46, 44, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        color: #fff;
+        font-family: "Outfit", sans-serif;
+        font-size: 0.95rem;
+        font-weight: 600;
+        box-sizing: border-box;
+        outline: none;
+        transition: all 0.25s ease;
+      }
+      .custom-time-input:focus {
+        border-color: #769656;
+        background: rgba(48, 46, 44, 0.8);
+        box-shadow: 0 0 8px rgba(118, 150, 86, 0.2);
+      }
+
       .board-theme-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -479,6 +499,39 @@
         background: rgba(118, 150, 86, 0.12);
         border-color: #769656;
         box-shadow: 0 4px 15px rgba(118, 150, 86, 0.15);
+      }
+
+      .sound-theme-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+      }
+      .sound-card {
+        background: rgba(48, 46, 44, 0.4);
+        border: 2px solid rgba(255, 255, 255, 0.04);
+        border-radius: 12px;
+        padding: 12px 8px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        font-family: "Outfit", sans-serif;
+        color: #bababa;
+        font-weight: 600;
+        font-size: 0.9rem;
+      }
+      .sound-card:hover {
+        border-color: rgba(255, 255, 255, 0.15);
+        color: #fff;
+        background: rgba(48, 46, 44, 0.8);
+      }
+      .sound-card.active {
+        background: rgba(118, 150, 86, 0.15);
+        border-color: #769656;
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(118, 150, 86, 0.15);
       }
 
       .piece-preview-img {
@@ -800,6 +853,16 @@
         font-size: 0.7rem;
       }
 
+      #settings-modal .sound-theme-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+      }
+      #settings-modal .sound-card {
+        padding: 10px 4px;
+        border-radius: 8px;
+        gap: 4px;
+      }
+
       #settings-modal .btn-premium {
         padding: 10px 20px;
         font-size: 0.95rem;
@@ -873,6 +936,80 @@
             <button class="time-btn" data-time="300">5 Min</button>
             <button class="time-btn" data-time="600">10 Min</button>
             <button class="time-btn" data-time="0">No Limit</button>
+            <button class="time-btn" data-time="custom">Custom</button>
+          </div>
+        </div>
+
+        <div
+          class="setting-section"
+          id="custom-time-settings"
+          style="display: none; margin-top: 16px"
+        >
+          <div class="setting-label">Custom Time Config</div>
+          <div style="display: flex; gap: 12px">
+            <div style="flex: 1">
+              <label
+                for="custom-minutes"
+                style="
+                  font-size: 0.8rem;
+                  color: #bababa;
+                  display: block;
+                  margin-bottom: 6px;
+                  font-weight: 600;
+                "
+                >Minutes</label
+              >
+              <input
+                type="number"
+                id="custom-minutes"
+                min="0"
+                max="1440"
+                value="10"
+                class="custom-time-input"
+              />
+            </div>
+            <div style="flex: 1">
+              <label
+                for="custom-seconds"
+                style="
+                  font-size: 0.8rem;
+                  color: #bababa;
+                  display: block;
+                  margin-bottom: 6px;
+                  font-weight: 600;
+                "
+                >Seconds</label
+              >
+              <input
+                type="number"
+                id="custom-seconds"
+                min="0"
+                max="59"
+                value="0"
+                class="custom-time-input"
+              />
+            </div>
+            <div style="flex: 1">
+              <label
+                for="custom-increment"
+                style="
+                  font-size: 0.8rem;
+                  color: #bababa;
+                  display: block;
+                  margin-bottom: 6px;
+                  font-weight: 600;
+                "
+                >Increment (s)</label
+              >
+              <input
+                type="number"
+                id="custom-increment"
+                min="0"
+                max="3600"
+                value="5"
+                class="custom-time-input"
+              />
+            </div>
           </div>
         </div>
 
@@ -933,6 +1070,11 @@
           <div class="piece-theme-grid" id="piece-themes-container"></div>
         </div>
 
+        <div class="setting-section" style="margin-bottom: 32px">
+          <div class="setting-label">Sound Theme</div>
+          <div class="sound-theme-grid" id="sound-themes-container"></div>
+        </div>
+
         <button
           id="close-settings-btn"
           class="btn-premium"
@@ -947,6 +1089,8 @@
       class ChessAudio {
         constructor() {
           this.audioCtx = null;
+          this.theme =
+            localStorage.getItem("stockpanda_sound_theme") || "modern";
         }
 
         init() {
@@ -972,6 +1116,21 @@
           if (!this.audioCtx) return;
           const time = this.audioCtx.currentTime;
 
+          this.theme =
+            localStorage.getItem("stockpanda_sound_theme") || "modern";
+
+          if (this.theme === "wood") {
+            this.playWood(type, time, isWin);
+          } else if (this.theme === "8bit") {
+            this.play8Bit(type, time, isWin);
+          } else if (this.theme === "mechanical") {
+            this.playMechanical(type, time, isWin);
+          } else {
+            this.playModern(type, time, isWin);
+          }
+        }
+
+        playModern(type, time, isWin) {
           if (type === "move") {
             this.playMoveSynth(time);
           } else if (type === "capture") {
@@ -981,7 +1140,7 @@
           } else if (type === "castle") {
             this.playCastleSynth(time);
           } else if (type === "victory" || type === "defeat") {
-            this.playGameOverSynth(time, type === "victory");
+            this.playGameOverSynth(time, isWin);
           }
         }
 
@@ -1069,6 +1228,23 @@
           playTone(650, time + 0.05, 0.12, 0.1);
         }
 
+        playCastleSynth(time) {
+          const playTone = (freq, start, duration, gainVal) => {
+            const osc = this.audioCtx.createOscillator();
+            const gain = this.audioCtx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(freq, start);
+            gain.gain.setValueAtTime(gainVal, start);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+            osc.connect(gain);
+            gain.connect(this.audioCtx.destination);
+            osc.start(start);
+            osc.stop(start + duration + 0.01);
+          };
+          playTone(330, time, 0.1, 0.1);
+          playTone(440, time + 0.08, 0.12, 0.1);
+        }
+
         playGameOverSynth(time, isWin) {
           const freqs = isWin
             ? [261.63, 329.63, 392.0, 523.25]
@@ -1089,6 +1265,198 @@
             osc.start(time + idx * 0.08);
             osc.stop(time + idx * 0.08 + 0.4);
           });
+        }
+
+        playWood(type, time, isWin) {
+          const filter = this.audioCtx.createBiquadFilter();
+          filter.type = "lowpass";
+          filter.frequency.setValueAtTime(380, time);
+          filter.connect(this.audioCtx.destination);
+
+          const playWoodHit = (freq, start, duration, gainVal) => {
+            const osc = this.audioCtx.createOscillator();
+            const gain = this.audioCtx.createGain();
+            osc.type = "triangle";
+            osc.frequency.setValueAtTime(freq, start);
+            osc.frequency.exponentialRampToValueAtTime(
+              freq * 0.3,
+              start + duration,
+            );
+            gain.gain.setValueAtTime(gainVal, start);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+            osc.connect(gain);
+            gain.connect(filter);
+            osc.start(start);
+            osc.stop(start + duration + 0.01);
+          };
+
+          if (type === "move") {
+            playWoodHit(150, time, 0.05, 0.45);
+          } else if (type === "capture") {
+            playWoodHit(180, time, 0.03, 0.35);
+            playWoodHit(120, time + 0.03, 0.06, 0.45);
+          } else if (type === "check") {
+            playWoodHit(330, time, 0.12, 0.25);
+            playWoodHit(440, time + 0.08, 0.15, 0.25);
+          } else if (type === "castle") {
+            const osc = this.audioCtx.createOscillator();
+            const gain = this.audioCtx.createGain();
+            osc.type = "triangle";
+            osc.frequency.setValueAtTime(100, time);
+            osc.frequency.linearRampToValueAtTime(150, time + 0.08);
+            gain.gain.setValueAtTime(0.2, time);
+            gain.gain.linearRampToValueAtTime(0.01, time + 0.08);
+            osc.connect(gain);
+            gain.connect(filter);
+            osc.start(time);
+            osc.stop(time + 0.09);
+            playWoodHit(130, time + 0.08, 0.05, 0.4);
+          } else if (type === "victory" || type === "defeat") {
+            const notes = isWin
+              ? [261.63, 329.63, 392.0]
+              : [220.0, 261.63, 220.0];
+            notes.forEach((freq, idx) => {
+              playWoodHit(freq, time + idx * 0.1, 0.25, 0.3);
+            });
+          }
+        }
+
+        play8Bit(type, time, isWin) {
+          const playBeep = (
+            freq,
+            start,
+            duration,
+            gainVal,
+            slideFreq = null,
+          ) => {
+            const osc = this.audioCtx.createOscillator();
+            const gain = this.audioCtx.createGain();
+            osc.type = "square";
+            osc.frequency.setValueAtTime(freq, start);
+            if (slideFreq) {
+              osc.frequency.exponentialRampToValueAtTime(
+                slideFreq,
+                start + duration,
+              );
+            }
+            gain.gain.setValueAtTime(gainVal, start);
+            gain.gain.setValueAtTime(gainVal, start + duration - 0.01);
+            gain.gain.linearRampToValueAtTime(0.001, start + duration);
+            osc.connect(gain);
+            gain.connect(this.audioCtx.destination);
+            osc.start(start);
+            osc.stop(start + duration + 0.01);
+          };
+
+          if (type === "move") {
+            playBeep(400, time, 0.06, 0.08, 1200);
+          } else if (type === "capture") {
+            playBeep(800, time, 0.03, 0.08);
+            playBeep(500, time + 0.03, 0.03, 0.08);
+            playBeep(250, time + 0.06, 0.04, 0.08);
+          } else if (type === "check") {
+            playBeep(880, time, 0.04, 0.08);
+            playBeep(1046, time + 0.05, 0.04, 0.08);
+            playBeep(1318, time + 0.1, 0.08, 0.08);
+          } else if (type === "castle") {
+            playBeep(987, time, 0.06, 0.08);
+            playBeep(1318, time + 0.06, 0.15, 0.08);
+          } else if (type === "victory" || type === "defeat") {
+            if (isWin) {
+              playBeep(523.25, time, 0.08, 0.08);
+              playBeep(659.25, time + 0.08, 0.08, 0.08);
+              playBeep(783.99, time + 0.16, 0.08, 0.08);
+              playBeep(1046.5, time + 0.24, 0.25, 0.08);
+            } else {
+              playBeep(400, time, 0.35, 0.08, 80);
+            }
+          }
+        }
+
+        playMechanical(type, time, isWin) {
+          const playClickNoise = (start, duration, gainVal, filterFreq) => {
+            const bufferSize = this.audioCtx.sampleRate * duration;
+            const buffer = this.audioCtx.createBuffer(
+              1,
+              bufferSize,
+              this.audioCtx.sampleRate,
+            );
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+              data[i] = Math.random() * 2 - 1;
+            }
+            const noise = this.audioCtx.createBufferSource();
+            noise.buffer = buffer;
+
+            const filter = this.audioCtx.createBiquadFilter();
+            filter.type = "highpass";
+            filter.frequency.setValueAtTime(filterFreq, start);
+
+            const gain = this.audioCtx.createGain();
+            gain.gain.setValueAtTime(gainVal, start);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.audioCtx.destination);
+            noise.start(start);
+            noise.stop(start + duration);
+          };
+
+          const playSwitchBounce = (freq, start, duration, gainVal) => {
+            const osc = this.audioCtx.createOscillator();
+            const gain = this.audioCtx.createGain();
+            osc.type = "triangle";
+            osc.frequency.setValueAtTime(freq, start);
+            gain.gain.setValueAtTime(gainVal, start);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+            osc.connect(gain);
+            gain.connect(this.audioCtx.destination);
+            osc.start(start);
+            osc.stop(start + duration + 0.01);
+          };
+
+          if (type === "move") {
+            playClickNoise(time, 0.012, 0.25, 4000);
+            playSwitchBounce(400, time, 0.02, 0.15);
+          } else if (type === "capture") {
+            playClickNoise(time, 0.01, 0.22, 3500);
+            playSwitchBounce(350, time, 0.015, 0.12);
+            playClickNoise(time + 0.02, 0.015, 0.25, 3800);
+            playSwitchBounce(380, time + 0.02, 0.025, 0.18);
+          } else if (type === "check") {
+            const osc = this.audioCtx.createOscillator();
+            const gain = this.audioCtx.createGain();
+            osc.type = "square";
+            osc.frequency.setValueAtTime(1500, time);
+            gain.gain.setValueAtTime(0.04, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+            const filter = this.audioCtx.createBiquadFilter();
+            filter.type = "highpass";
+            filter.frequency.setValueAtTime(1200, time);
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.audioCtx.destination);
+            osc.start(time);
+            osc.stop(time + 0.22);
+          } else if (type === "castle") {
+            playClickNoise(time, 0.03, 0.15, 2000);
+            playSwitchBounce(200, time, 0.05, 0.1);
+            playClickNoise(time + 0.04, 0.015, 0.25, 4000);
+          } else if (type === "victory" || type === "defeat") {
+            const pulses = isWin ? 5 : 4;
+            const delay = isWin ? 0.08 : 0.15;
+            for (let i = 0; i < pulses; i++) {
+              const clickTime = time + i * delay;
+              playClickNoise(clickTime, 0.01, 0.2, 3800);
+              playSwitchBounce(
+                isWin ? 600 - i * 50 : 200 + i * 50,
+                clickTime,
+                0.02,
+                0.15,
+              );
+            }
+          }
         }
       }
 
@@ -1123,6 +1491,14 @@
         sunset: { name: "Sunset Orange", light: "#f0d2b5", dark: "#d48863" },
         cherry: { name: "Cherry Red", light: "#f5e4e4", dark: "#b83b3b" },
         arctic: { name: "Arctic Ice", light: "#e2eafc", dark: "#3d5a80" },
+        lavender: { name: "Lavender Mist", light: "#f3eafb", dark: "#9d81ba" },
+        forest: { name: "Midnight Forest", light: "#e2ebe9", dark: "#3b5249" },
+        sienna: { name: "Burnt Sienna", light: "#f7ebe1", dark: "#b85a3c" },
+        slate: { name: "Slate Steel", light: "#eef1f6", dark: "#6f8294" },
+        obsidian: { name: "Gold Obsidian", light: "#eae8d2", dark: "#3d3d3a" },
+        electric: { name: "Electric Blue", light: "#e3f2fd", dark: "#1e88e5" },
+        espresso: { name: "Espresso Brown", light: "#efe6dd", dark: "#6f4e37" },
+        neon: { name: "Neon Mint", light: "#e0f2f1", dark: "#00695c" },
       };
 
       const pieceThemes = {
@@ -1150,15 +1526,43 @@
           name: "Fantasy",
           url: "https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/fantasy/{piece}.svg",
         },
+        alpha: {
+          name: "Alpha",
+          url: "https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/alpha/{piece}.svg",
+        },
+        california: {
+          name: "California",
+          url: "https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/california/{piece}.svg",
+        },
+        governor: {
+          name: "Governor",
+          url: "https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/governor/{piece}.svg",
+        },
       };
 
       let currentBoardTheme =
         localStorage.getItem("stockpanda_board_theme") || "classic";
       let currentPieceTheme =
         localStorage.getItem("stockpanda_piece_theme") || "wikipedia";
+      let currentSoundTheme =
+        localStorage.getItem("stockpanda_sound_theme") || "modern";
 
       function getPieceUrl(piece) {
         return pieceThemes[currentPieceTheme].url.replace("{piece}", piece);
+      }
+
+      const soundThemes = {
+        modern: { name: "Modern Synth" },
+        wood: { name: "Wood Acoustic" },
+        "8bit": { name: "8-Bit Retro" },
+        mechanical: { name: "Mechanical Switch" },
+      };
+
+      function setSoundTheme(themeKey) {
+        currentSoundTheme = themeKey;
+        $(".sound-card").removeClass("active");
+        $(`.sound-card[data-sound-theme="${themeKey}"]`).addClass("active");
+        localStorage.setItem("stockpanda_sound_theme", themeKey);
       }
 
       let PIECE_URL = pieceThemes[currentPieceTheme].url;
@@ -1170,6 +1574,7 @@
         thinking = false,
         playerColor = null,
         totalTimeLimit = 180,
+        timeIncrement = 0,
         playerTimeRemaining = 180,
         opponentTimeRemaining = 180,
         activeTimerInterval = null,
@@ -1551,6 +1956,10 @@
           activeTurn = d.fen.split(" ")[1];
           lastActualFen = d.fen;
 
+          if (totalTimeLimit > 0 && timeIncrement > 0) {
+            opponentTimeRemaining += timeIncrement;
+          }
+
           const moveColor = playerColor === "w" ? "b" : "w";
 
           if (d.over) {
@@ -1595,6 +2004,10 @@
         });
         const d = await res.json();
         if (d.error) return;
+
+        if (totalTimeLimit > 0 && timeIncrement > 0) {
+          playerTimeRemaining += timeIncrement;
+        }
 
         activeTurn = d.fen.split(" ")[1];
         lastActualFen = d.fen;
@@ -1860,7 +2273,6 @@
             }
           }
 
-          // Reset drag / select helper flags if we didn't perform a valid click
           justDeselected = null;
           clickStartSquare = null;
         },
@@ -2033,10 +2445,23 @@
         $("#color-modal").removeClass("active");
         $("#game-over-modal").removeClass("active");
 
-        const selectedSeconds = parseInt(
-          $(".time-btn.active").attr("data-time") || "180",
-        );
+        const timeBtnActive = $(".time-btn.active");
+        const mode = timeBtnActive.attr("data-time");
+        let selectedSeconds = 180;
+        let selectedIncrement = 0;
+
+        if (mode === "custom") {
+          const m = parseInt($("#custom-minutes").val()) || 0;
+          const s = parseInt($("#custom-seconds").val()) || 0;
+          selectedSeconds = m * 60 + s;
+          selectedIncrement = parseInt($("#custom-increment").val()) || 0;
+        } else {
+          selectedSeconds = parseInt(mode || "180");
+          selectedIncrement = 0;
+        }
+
         totalTimeLimit = selectedSeconds;
+        timeIncrement = selectedIncrement;
         playerTimeRemaining = selectedSeconds;
         opponentTimeRemaining = selectedSeconds;
         activeTurn = "w";
@@ -2085,6 +2510,32 @@
       $(".time-btn").on("click", function () {
         $(".time-btn").removeClass("active");
         $(this).addClass("active");
+
+        const mode = $(this).attr("data-time");
+        if (mode === "custom") {
+          $("#custom-time-settings").show();
+        } else {
+          $("#custom-time-settings").hide();
+        }
+      });
+
+      $("#custom-minutes").on("change", function () {
+        let val = parseInt($(this).val());
+        if (isNaN(val) || val < 0) val = 0;
+        if (val > 1440) val = 1440;
+        $(this).val(val);
+      });
+      $("#custom-seconds").on("change", function () {
+        let val = parseInt($(this).val());
+        if (isNaN(val) || val < 0) val = 0;
+        if (val > 59) val = 59;
+        $(this).val(val);
+      });
+      $("#custom-increment").on("change", function () {
+        let val = parseInt($(this).val());
+        if (isNaN(val) || val < 0) val = 0;
+        if (val > 3600) val = 3600;
+        $(this).val(val);
       });
 
       $("#open-settings-btn").on("click", () => {
@@ -2181,8 +2632,23 @@
           pieceContainer.append(card);
         });
 
+        const soundContainer = $("#sound-themes-container");
+        soundContainer.empty();
+        Object.entries(soundThemes).forEach(([key, theme]) => {
+          const card = $("<button>")
+            .addClass("sound-card")
+            .attr("data-sound-theme", key)
+            .append($("<span>").addClass("sound-name-label").text(theme.name))
+            .on("click", () => {
+              setSoundTheme(key);
+              chessAudio.play("move");
+            });
+          soundContainer.append(card);
+        });
+
         setBoardTheme(currentBoardTheme);
         setPieceTheme(currentPieceTheme);
+        setSoundTheme(currentSoundTheme);
       }
 
       initializeThemeMenus();
@@ -2190,4 +2656,3 @@
     </script>
   </body>
 </html>
-feat: vercel deployment
