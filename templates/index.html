@@ -685,6 +685,68 @@
         color: #9c9a96;
       }
 
+      .move-cell.clickable {
+        cursor: pointer;
+      }
+      .move-cell.clickable:hover {
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .review-bar {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 10px 18px;
+        background: rgba(118, 150, 86, 0.06);
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        flex-shrink: 0;
+      }
+      .review-bar.active {
+        display: flex;
+      }
+      .review-bar .nav-btn {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #bababa;
+        border-radius: 6px;
+        padding: 5px 8px;
+        cursor: pointer;
+        font-family: "Outfit", sans-serif;
+        font-size: 0.85rem;
+        font-weight: 600;
+        line-height: 1;
+        transition: all 0.15s ease;
+        min-width: 28px;
+        text-align: center;
+      }
+      .review-bar .nav-btn:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.12);
+        color: #fff;
+      }
+      .review-bar .nav-btn:disabled {
+        opacity: 0.3;
+        cursor: default;
+      }
+      .review-bar .live-btn {
+        background: #769656;
+        border-color: #769656;
+        color: #fff;
+        padding: 5px 12px;
+        margin-left: 4px;
+      }
+      .review-bar .live-btn:hover {
+        background: #83a562;
+      }
+      .review-bar .review-label {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #9c9a96;
+        min-width: 44px;
+        text-align: center;
+        letter-spacing: 0.3px;
+      }
+
       @media (max-width: 800px) {
         html,
         body {
@@ -909,8 +971,23 @@
       <div class="move-history-panel">
         <div class="history-header">
           <span class="history-title">Moves</span>
+          <span class="eval-badge" id="eval-score"></span>
         </div>
         <div class="moves-container" id="moves-list"></div>
+        <div class="review-bar" id="review-bar">
+          <button class="nav-btn" id="review-first" title="First position">
+            ⏮
+          </button>
+          <button class="nav-btn" id="review-prev" title="Previous move">
+            ◀
+          </button>
+          <span class="review-label" id="review-label">Start</span>
+          <button class="nav-btn" id="review-next" title="Next move">▶</button>
+          <button class="nav-btn" id="review-last" title="Last position">
+            ⏭
+          </button>
+          <button class="nav-btn live-btn" id="review-live">Live</button>
+        </div>
         <div class="history-footer">
           <div class="game-status-text" id="game-status-small">
             White to move
@@ -1212,10 +1289,10 @@
         }
 
         playCheckSynth(time) {
-          const playTone = (freq, start, duration, gainVal) => {
+          const playTone = (freq, start, duration, gainVal, type) => {
             const osc = this.audioCtx.createOscillator();
             const gain = this.audioCtx.createGain();
-            osc.type = "sine";
+            osc.type = type || "sine";
             osc.frequency.setValueAtTime(freq, start);
             gain.gain.setValueAtTime(gainVal, start);
             gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
@@ -1224,25 +1301,33 @@
             osc.start(start);
             osc.stop(start + duration + 0.01);
           };
-          playTone(520, time, 0.08, 0.1);
-          playTone(650, time + 0.05, 0.12, 0.1);
+          playTone(660, time, 0.06, 0.1, "square");
+          playTone(880, time + 0.07, 0.1, 0.08, "square");
         }
 
         playCastleSynth(time) {
-          const playTone = (freq, start, duration, gainVal) => {
-            const osc = this.audioCtx.createOscillator();
-            const gain = this.audioCtx.createGain();
-            osc.type = "sine";
-            osc.frequency.setValueAtTime(freq, start);
-            gain.gain.setValueAtTime(gainVal, start);
-            gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
-            osc.connect(gain);
-            gain.connect(this.audioCtx.destination);
-            osc.start(start);
-            osc.stop(start + duration + 0.01);
-          };
-          playTone(330, time, 0.1, 0.1);
-          playTone(440, time + 0.08, 0.12, 0.1);
+          const osc1 = this.audioCtx.createOscillator();
+          const gain1 = this.audioCtx.createGain();
+          osc1.type = "triangle";
+          osc1.frequency.setValueAtTime(250, time);
+          osc1.frequency.exponentialRampToValueAtTime(100, time + 0.15);
+          gain1.gain.setValueAtTime(0.15, time);
+          gain1.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
+          osc1.connect(gain1);
+          gain1.connect(this.audioCtx.destination);
+          osc1.start(time);
+          osc1.stop(time + 0.16);
+
+          const osc2 = this.audioCtx.createOscillator();
+          const gain2 = this.audioCtx.createGain();
+          osc2.type = "sine";
+          osc2.frequency.setValueAtTime(130, time + 0.12);
+          gain2.gain.setValueAtTime(0.2, time + 0.12);
+          gain2.gain.exponentialRampToValueAtTime(0.001, time + 0.22);
+          osc2.connect(gain2);
+          gain2.connect(this.audioCtx.destination);
+          osc2.start(time + 0.12);
+          osc2.stop(time + 0.23);
         }
 
         playGameOverSynth(time, isWin) {
@@ -1296,21 +1381,22 @@
             playWoodHit(180, time, 0.03, 0.35);
             playWoodHit(120, time + 0.03, 0.06, 0.45);
           } else if (type === "check") {
-            playWoodHit(330, time, 0.12, 0.25);
-            playWoodHit(440, time + 0.08, 0.15, 0.25);
+            playWoodHit(330, time, 0.07, 0.25);
+            playWoodHit(440, time + 0.06, 0.07, 0.25);
+            playWoodHit(550, time + 0.12, 0.1, 0.25);
           } else if (type === "castle") {
             const osc = this.audioCtx.createOscillator();
             const gain = this.audioCtx.createGain();
             osc.type = "triangle";
-            osc.frequency.setValueAtTime(100, time);
-            osc.frequency.linearRampToValueAtTime(150, time + 0.08);
-            gain.gain.setValueAtTime(0.2, time);
-            gain.gain.linearRampToValueAtTime(0.01, time + 0.08);
+            osc.frequency.setValueAtTime(80, time);
+            osc.frequency.linearRampToValueAtTime(140, time + 0.12);
+            gain.gain.setValueAtTime(0.25, time);
+            gain.gain.linearRampToValueAtTime(0.01, time + 0.12);
             osc.connect(gain);
             gain.connect(filter);
             osc.start(time);
-            osc.stop(time + 0.09);
-            playWoodHit(130, time + 0.08, 0.05, 0.4);
+            osc.stop(time + 0.13);
+            playWoodHit(160, time + 0.1, 0.06, 0.5);
           } else if (type === "victory" || type === "defeat") {
             const notes = isWin
               ? [261.63, 329.63, 392.0]
@@ -1355,12 +1441,12 @@
             playBeep(500, time + 0.03, 0.03, 0.08);
             playBeep(250, time + 0.06, 0.04, 0.08);
           } else if (type === "check") {
-            playBeep(880, time, 0.04, 0.08);
-            playBeep(1046, time + 0.05, 0.04, 0.08);
-            playBeep(1318, time + 0.1, 0.08, 0.08);
+            playBeep(660, time, 0.04, 0.08);
+            playBeep(880, time + 0.04, 0.04, 0.08);
+            playBeep(1100, time + 0.08, 0.06, 0.08);
           } else if (type === "castle") {
-            playBeep(987, time, 0.06, 0.08);
-            playBeep(1318, time + 0.06, 0.15, 0.08);
+            playBeep(500, time, 0.08, 0.08);
+            playBeep(300, time + 0.08, 0.14, 0.08);
           } else if (type === "victory" || type === "defeat") {
             if (isWin) {
               playBeep(523.25, time, 0.08, 0.08);
@@ -1427,22 +1513,23 @@
           } else if (type === "check") {
             const osc = this.audioCtx.createOscillator();
             const gain = this.audioCtx.createGain();
-            osc.type = "square";
-            osc.frequency.setValueAtTime(1500, time);
-            gain.gain.setValueAtTime(0.04, time);
-            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(1200, time);
+            gain.gain.setValueAtTime(0.07, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
             const filter = this.audioCtx.createBiquadFilter();
             filter.type = "highpass";
-            filter.frequency.setValueAtTime(1200, time);
+            filter.frequency.setValueAtTime(1000, time);
             osc.connect(filter);
             filter.connect(gain);
             gain.connect(this.audioCtx.destination);
             osc.start(time);
-            osc.stop(time + 0.22);
+            osc.stop(time + 0.32);
           } else if (type === "castle") {
-            playClickNoise(time, 0.03, 0.15, 2000);
-            playSwitchBounce(200, time, 0.05, 0.1);
-            playClickNoise(time + 0.04, 0.015, 0.25, 4000);
+            playClickNoise(time, 0.02, 0.2, 2500);
+            playSwitchBounce(200, time, 0.04, 0.1);
+            playClickNoise(time + 0.04, 0.012, 0.25, 4000);
+            playSwitchBounce(300, time + 0.04, 0.025, 0.15);
           } else if (type === "victory" || type === "defeat") {
             const pulses = isWin ? 5 : 4;
             const delay = isWin ? 0.08 : 0.15;
@@ -1583,6 +1670,7 @@
         currentPremove = null;
 
       let moveHistory = [];
+      let viewingMoveIndex = null;
 
       let annotatedSquares = new Map();
       let annotatedArrows = new Map();
@@ -1726,17 +1814,30 @@
           const whiteMove = moveHistory[i];
           const blackMove = moveHistory[i + 1];
 
-          const isWhiteLast = i === moveHistory.length - 1;
-          const isBlackLast = i + 1 === moveHistory.length - 1;
+          const isWhiteActive =
+            viewingMoveIndex === null
+              ? i === moveHistory.length - 1
+              : viewingMoveIndex === i;
+          const isBlackActive =
+            viewingMoveIndex === null
+              ? i + 1 === moveHistory.length - 1
+              : viewingMoveIndex === i + 1;
 
           list.append(`
             <div class="move-row">
               <div class="move-number">${moveNum}.</div>
-              <div class="move-cell ${isWhiteLast ? "active-move" : ""}">${whiteMove.san}</div>
-              <div class="move-cell ${isBlackLast ? "active-move" : ""}">${blackMove ? blackMove.san : ""}</div>
+              <div class="move-cell clickable ${isWhiteActive ? "active-move" : ""}" data-move-index="${i}">${whiteMove.san}</div>
+              <div class="move-cell clickable ${isBlackActive ? "active-move" : ""}" data-move-index="${i + 1}">${blackMove ? blackMove.san : ""}</div>
             </div>
           `);
         }
+
+        list.find(".move-cell[data-move-index]").on("click", function () {
+          const index = parseInt($(this).data("move-index"));
+          if (!isNaN(index) && index >= 0 && index < moveHistory.length) {
+            goToMove(index);
+          }
+        });
 
         setTimeout(() => {
           if (list.length && list[0]) {
@@ -1744,26 +1845,101 @@
           }
         }, 10);
 
-        if (moveHistory.length > 0) {
-          const latestMove = moveHistory[moveHistory.length - 1];
-          const score = latestMove.score;
-          updateEvalDisplay(score);
+        updateEvalFromHistory();
+      }
+
+      function updateEvalFromHistory() {
+        if (viewingMoveIndex !== null) {
+          if (viewingMoveIndex === -1) {
+            updateEvalDisplay(0);
+          } else {
+            updateEvalDisplay(moveHistory[viewingMoveIndex].score);
+          }
+        } else if (moveHistory.length > 0) {
+          updateEvalDisplay(moveHistory[moveHistory.length - 1].score);
         } else {
           updateEvalDisplay(0);
         }
       }
 
-      function addMoveToHistory(san, color, score) {
-        moveHistory.push({ san, color, score });
+      function addMoveToHistory(san, color, score, fen) {
+        moveHistory.push({ san, color, score, fen });
+        viewingMoveIndex = null;
         updateMoveHistoryUI();
 
-        // update small game status text
         const nextTurn = color === "w" ? "Black" : "White";
         $("#game-status-small").text(`${nextTurn} to move`);
+        $("#review-bar").removeClass("active");
       }
 
       function clearHighlights() {
         $("#board .square-55d63").removeClass("highlight selected");
+      }
+
+      function goToMove(index) {
+        if (index < -1 || index >= moveHistory.length) return;
+        viewingMoveIndex = index;
+        if (index === -1) {
+          cboard.position("start", true);
+        } else {
+          cboard.position(moveHistory[index].fen.split(" ")[0], true);
+        }
+        updateMoveHistoryUI();
+        updateReviewUI();
+      }
+
+      function goToLiveGame() {
+        viewingMoveIndex = null;
+        if (lastActualFen) {
+          cboard.position(lastActualFen.split(" ")[0], true);
+        }
+        updateMoveHistoryUI();
+        updateReviewUI();
+        $("#review-bar").removeClass("active");
+      }
+
+      function stepBackward() {
+        if (moveHistory.length === 0) return;
+        if (viewingMoveIndex === null) {
+          goToMove(moveHistory.length - 1);
+        } else if (viewingMoveIndex > -1) {
+          goToMove(viewingMoveIndex - 1);
+        }
+      }
+
+      function stepForward() {
+        if (viewingMoveIndex === null) return;
+        if (viewingMoveIndex >= moveHistory.length - 1) {
+          goToLiveGame();
+        } else {
+          goToMove(viewingMoveIndex + 1);
+        }
+      }
+
+      function updateReviewUI() {
+        const bar = $("#review-bar");
+        const label = $("#review-label");
+        const prevBtn = $("#review-prev");
+        const nextBtn = $("#review-next");
+        const firstBtn = $("#review-first");
+        const lastBtn = $("#review-last");
+
+        if (viewingMoveIndex === null || moveHistory.length === 0) {
+          bar.removeClass("active");
+          return;
+        }
+
+        bar.addClass("active");
+        if (viewingMoveIndex === -1) {
+          label.text("Start");
+        } else {
+          label.text(`${viewingMoveIndex + 1}/${moveHistory.length}`);
+        }
+
+        prevBtn.prop("disabled", viewingMoveIndex <= -1);
+        firstBtn.prop("disabled", viewingMoveIndex <= -1);
+        nextBtn.prop("disabled", viewingMoveIndex >= moveHistory.length - 1);
+        lastBtn.prop("disabled", viewingMoveIndex >= moveHistory.length - 1);
       }
 
       function clearPremoveHighlights() {
@@ -1821,7 +1997,7 @@
         legalCache = {};
 
         const moveColor = playerColor;
-        addMoveToHistory(d.san, moveColor, d.score);
+        addMoveToHistory(d.san, moveColor, d.score, d.fen);
 
         playMoveSound(d, true);
 
@@ -1965,7 +2141,7 @@
           if (d.over) {
             clearInterval(activeTimerInterval);
             cboard.position(d.fen.split(" ")[0], true);
-            addMoveToHistory(d.san, moveColor, d.score);
+            addMoveToHistory(d.san, moveColor, d.score, d.fen);
             playMoveSound(d, false);
             showGameOverModal(d.reason || "Game Over!");
             legalCache = {};
@@ -1977,12 +2153,12 @@
           if (currentPremove) {
             const premoveUci = currentPremove.from + currentPremove.to;
             cboard.position(d.fen.split(" ")[0], false);
-            addMoveToHistory(d.san, moveColor, d.score);
+            addMoveToHistory(d.san, moveColor, d.score, d.fen);
             playMoveSound(d, false);
             await applyPremove(premoveUci);
           } else {
             cboard.position(d.fen.split(" ")[0], true);
-            addMoveToHistory(d.san, moveColor, d.score);
+            addMoveToHistory(d.san, moveColor, d.score, d.fen);
             playMoveSound(d, false);
             await loadLegalMoves();
           }
@@ -2015,7 +2191,7 @@
         legalCache = {};
 
         const moveColor = playerColor;
-        addMoveToHistory(d.san, moveColor, d.score);
+        addMoveToHistory(d.san, moveColor, d.score, d.fen);
 
         playMoveSound(d, true);
 
@@ -2068,6 +2244,7 @@
 
       async function squareClick(square) {
         if (!playerColor) return;
+        if (viewingMoveIndex !== null) return;
 
         const isMyTurn = activeTurn === playerColor && !thinking;
 
@@ -2378,6 +2555,7 @@
         pieceTheme: getPieceUrl,
         onDragStart: (source, piece) => {
           if (!playerColor || piece[0] !== playerColor) return false;
+          if (viewingMoveIndex !== null) return false;
 
           const isMyTurn = activeTurn === playerColor && !thinking;
 
@@ -2485,6 +2663,7 @@
         clearPremoveHighlights();
 
         moveHistory = [];
+        viewingMoveIndex = null;
         updateMoveHistoryUI();
         $("#game-status-small").text("White to move");
         setTimeout(resizeMovesPanel, 150);
@@ -2544,6 +2723,28 @@
 
       $("#close-settings-btn").on("click", () => {
         $("#settings-modal").removeClass("active");
+      });
+
+      $("#review-prev").on("click", stepBackward);
+      $("#review-next").on("click", stepForward);
+      $("#review-first").on("click", () => goToMove(-1));
+      $("#review-last").on("click", () => goToMove(moveHistory.length - 1));
+      $("#review-live").on("click", goToLiveGame);
+
+      $(document).on("keydown", function (e) {
+        if ($("#settings-modal").hasClass("active")) return;
+        if ($("#color-modal").hasClass("active")) return;
+        if ($("#game-over-modal").hasClass("active")) return;
+        if ($("#promo-modal").is(":visible")) return;
+        if ($(e.target).is("input, textarea, select")) return;
+
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          stepBackward();
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          stepForward();
+        }
       });
 
       function setBoardTheme(themeKey) {
