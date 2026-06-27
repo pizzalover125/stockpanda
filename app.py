@@ -115,7 +115,9 @@ def engine_move():
         save_board(b)
         return jsonify(fen=b.fen(), over=True)
 
-    m, score = get_engine_move(b)
+    data = request.get_json(silent=True) or {}
+    difficulty = data.get("difficulty", "medium")
+    m, score = get_engine_move(b, difficulty=difficulty)
     is_capture = b.is_capture(m)
     is_castling = b.is_castling(m)
     is_promotion = m.promotion is not None

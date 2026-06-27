@@ -408,6 +408,37 @@
         box-shadow: 0 4px 12px rgba(118, 150, 86, 0.25);
       }
 
+      .difficulty-options {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .difficulty-btn {
+        flex: 1;
+        background: rgba(48, 46, 44, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 10px 12px;
+        color: #bababa;
+        font-family: "Outfit", sans-serif;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        text-align: center;
+      }
+      .difficulty-btn:hover {
+        border-color: rgba(255, 255, 255, 0.15);
+        color: #fff;
+        background: rgba(48, 46, 44, 0.8);
+      }
+      .difficulty-btn.active {
+        background: #769656;
+        border-color: #769656;
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(118, 150, 86, 0.25);
+      }
+
       .custom-time-input {
         width: 100%;
         padding: 10px 12px;
@@ -971,7 +1002,6 @@
       <div class="move-history-panel">
         <div class="history-header">
           <span class="history-title">Moves</span>
-          <span class="eval-badge" id="eval-score"></span>
         </div>
         <div class="moves-container" id="moves-list"></div>
         <div class="review-bar" id="review-bar">
@@ -1087,6 +1117,17 @@
                 class="custom-time-input"
               />
             </div>
+          </div>
+        </div>
+
+        <div class="setting-section">
+          <div class="setting-label">Difficulty</div>
+          <div class="difficulty-options">
+            <button class="difficulty-btn" data-difficulty="easy">Easy</button>
+            <button class="difficulty-btn active" data-difficulty="medium">
+              Medium
+            </button>
+            <button class="difficulty-btn" data-difficulty="hard">Hard</button>
           </div>
         </div>
 
@@ -1667,7 +1708,8 @@
         activeTimerInterval = null,
         activeTurn = "w",
         lastActualFen = null,
-        currentPremove = null;
+        currentPremove = null,
+        selectedDifficulty = "medium";
 
       let moveHistory = [];
       let viewingMoveIndex = null;
@@ -2127,7 +2169,15 @@
         thinking = true;
         updateTimerDisplays();
         try {
-          const res = await fetch("/engine_move", { method: "POST" });
+          const res = await fetch("/engine_move", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              difficulty: selectedDifficulty,
+            }),
+          });
           const d = await res.json();
           activeTurn = d.fen.split(" ")[1];
           lastActualFen = d.fen;
@@ -2696,6 +2746,12 @@
         } else {
           $("#custom-time-settings").hide();
         }
+      });
+
+      $(".difficulty-btn").on("click", function () {
+        $(".difficulty-btn").removeClass("active");
+        $(this).addClass("active");
+        selectedDifficulty = $(this).attr("data-difficulty") || "medium";
       });
 
       $("#custom-minutes").on("change", function () {

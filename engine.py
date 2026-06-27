@@ -431,7 +431,7 @@ def get_tablebase_move(board):
     return best_move
 
 # iterative-deepening: search increasing depths until time runs out
-def get_engine_move(board, max_depth=MAX_DEPTH, time_limit=TIME_LIMIT):
+def get_engine_move(board, max_depth=None, time_limit=None, difficulty="medium"):
     start_time = time.time()
     
     # helper to return move with minimum delay
@@ -441,20 +441,67 @@ def get_engine_move(board, max_depth=MAX_DEPTH, time_limit=TIME_LIMIT):
             time.sleep(1.0 - elapsed)
         return move
 
-    book_move = get_book_move(board)
-    if book_move is not None:
-        print(f"[book] {book_move}")
-        board.push(book_move)
-        score = evaluate(board)
-        board.pop()
-        return return_with_delay(book_move), score
+    import random
 
-    tb_move = get_tablebase_move(board)
-    if tb_move is not None:
-        board.push(tb_move)
-        score = evaluate(board)
-        board.pop()
-        return return_with_delay(tb_move), score
+    # Determine settings based on difficulty if not explicitly set
+    diff_lower = difficulty.lower() if difficulty else "medium"
+    
+    # Easy: depth 1, time limit 0.5s, 15% random blunder rate, no book, no tablebase
+    # Medium: depth 3, time limit 1.5s, 0% blunder rate, use book, no tablebase
+    # Hard: depth 5, time limit 4.0s, 0% blunder rate, use book, use tablebase
+    
+    if max_depth is None or time_limit is None:
+        if diff_lower == "easy":
+            max_depth = 1 if max_depth is None else max_depth
+            time_limit = 0.5 if time_limit is None else time_limit
+            use_book = False
+            use_tablebase = False
+            blunder_chance = 0.15
+        elif diff_lower == "hard":
+            max_depth = 5 if max_depth is None else max_depth
+            time_limit = 4.0 if time_limit is None else time_limit
+            use_book = True
+            use_tablebase = True
+            blunder_chance = 0.0
+        else: # medium
+            max_depth = 3 if max_depth is None else max_depth
+            time_limit = 1.5 if time_limit is None else time_limit
+            use_book = True
+            use_tablebase = False
+            blunder_chance = 0.0
+    else:
+        # Defaults if explicitly provided
+        use_book = True
+        use_tablebase = True
+        blunder_chance = 0.0
+
+    # easy mode: small chance to play a random legal move
+    if blunder_chance > 0 and random.random() < blunder_chance:
+        legal_moves = list(board.legal_moves)
+        if legal_moves:
+            rand_move = random.choice(legal_moves)
+            print(f"[engine] blunder! selected random move: {rand_move}")
+            board.push(rand_move)
+            score = evaluate(board)
+            board.pop()
+            return return_with_delay(rand_move), score
+
+    if use_book:
+        book_move = get_book_move(board)
+        if book_move is not None:
+            print(f"[book] {book_move}")
+            board.push(book_move)
+            score = evaluate(board)
+            board.pop()
+            return return_with_delay(book_move), score
+
+    if use_tablebase:
+        tb_move = get_tablebase_move(board)
+        if tb_move is not None:
+            board.push(tb_move)
+            score = evaluate(board)
+            board.pop()
+            return return_with_delay(tb_move), score
 
     deadline = time.time() + time_limit
     tt = TranspositionTable()
