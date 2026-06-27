@@ -18,6 +18,7 @@
     />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
     <style>
       @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap");
 
@@ -83,6 +84,25 @@
         box-shadow: inset 0 0 0 3px rgba(244, 91, 105, 0.75) !important;
       }
 
+      .illegal-move-shake {
+        animation: shake 0.35s ease-in-out;
+      }
+
+      @keyframes shake {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        20%,
+        60% {
+          transform: translateX(-6px);
+        }
+        40%,
+        80% {
+          transform: translateX(6px);
+        }
+      }
+
       .annotated-square-red {
         background: rgba(235, 97, 80, 0.6) !important;
       }
@@ -143,9 +163,15 @@
         border: none;
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
         border-radius: 6px;
-        overflow: hidden;
+        overflow: visible;
         touch-action: none;
         position: relative;
+      }
+
+      .board-b72b1 {
+        border: none !important;
+        border-radius: 6px;
+        overflow: hidden;
       }
 
       .player-panel {
@@ -1259,7 +1285,28 @@
             this.playCastleSynth(time);
           } else if (type === "victory" || type === "defeat") {
             this.playGameOverSynth(time, isWin);
+          } else if (type === "illegal") {
+            this.playIllegalSynth(time);
           }
+        }
+
+        playIllegalSynth(time) {
+          const osc1 = this.audioCtx.createOscillator();
+          const osc2 = this.audioCtx.createOscillator();
+          const gain = this.audioCtx.createGain();
+          osc1.type = "triangle";
+          osc2.type = "sawtooth";
+          osc1.frequency.setValueAtTime(130, time);
+          osc2.frequency.setValueAtTime(133, time);
+          gain.gain.setValueAtTime(0.25, time);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(this.audioCtx.destination);
+          osc1.start(time);
+          osc2.start(time);
+          osc1.stop(time + 0.26);
+          osc2.stop(time + 0.26);
         }
 
         playMoveSynth(time) {
@@ -1445,6 +1492,9 @@
             notes.forEach((freq, idx) => {
               playWoodHit(freq, time + idx * 0.1, 0.25, 0.3);
             });
+          } else if (type === "illegal") {
+            playWoodHit(90, time, 0.08, 0.5);
+            playWoodHit(80, time + 0.08, 0.08, 0.4);
           }
         }
 
@@ -1497,6 +1547,8 @@
             } else {
               playBeep(400, time, 0.35, 0.08, 80);
             }
+          } else if (type === "illegal") {
+            playBeep(220, time, 0.2, 0.1, 80);
           }
         }
 
@@ -1584,6 +1636,10 @@
                 0.15,
               );
             }
+          } else if (type === "illegal") {
+            playClickNoise(time, 0.04, 0.3, 1000);
+            playSwitchBounce(150, time, 0.05, 0.25);
+            playSwitchBounce(120, time + 0.03, 0.06, 0.2);
           }
         }
       }
@@ -1594,8 +1650,41 @@
         chessAudio.resume();
       });
 
+      function triggerConfetti() {
+        if (typeof confetti === "function") {
+          confetti({
+            particleCount: 80,
+            angle: 60,
+            spread: 55,
+            origin: { x: 0, y: 0.8 },
+          });
+          confetti({
+            particleCount: 80,
+            angle: 120,
+            spread: 55,
+            origin: { x: 1, y: 0.8 },
+          });
+        }
+      }
+
+      function triggerIllegalMoveEffect() {
+        chessAudio.play("illegal");
+
+        const boardEl = $("#board");
+        boardEl.removeClass("illegal-move-shake");
+        void boardEl[0].offsetWidth;
+        boardEl.addClass("illegal-move-shake");
+
+        setTimeout(() => {
+          boardEl.removeClass("illegal-move-shake");
+        }, 350);
+      }
+
       function playMoveSound(d, isPlayerMove) {
         if (d.is_checkmate) {
+          if (isPlayerMove) {
+            triggerConfetti();
+          }
           chessAudio.play(isPlayerMove ? "victory" : "defeat", isPlayerMove);
         } else if (d.is_draw) {
           chessAudio.play("defeat", false);
@@ -2014,6 +2103,7 @@
         });
 
         if (res.status === 400) {
+          triggerIllegalMoveEffect();
           currentPremove = null;
           clearPremoveHighlights();
           cboard.position(lastActualFen.split(" ")[0], true);
@@ -2129,6 +2219,7 @@
         if (isPlayer) {
           chessAudio.play("defeat", false);
         } else {
+          triggerConfetti();
           chessAudio.play("victory", true);
         }
         updateTimerDisplays();
@@ -2252,7 +2343,6 @@
           return;
         }
 
-        // now ask the engine for its reply
         await triggerEngineMove();
       }
 
@@ -2389,6 +2479,8 @@
             }
             return;
           }
+
+          triggerIllegalMoveEffect();
           clearHighlights();
           selected = null;
           return;
@@ -2650,7 +2742,10 @@
           }
 
           const moves = getLegal(source);
-          if (!moves.includes(target)) return "snapback";
+          if (!moves.includes(target)) {
+            triggerIllegalMoveEffect();
+            return "snapback";
+          }
           handleMove(source, target);
         },
       });
@@ -2720,6 +2815,8 @@
 
         updateTimerDisplays();
         startTimer();
+
+        triggerConfetti();
 
         if (color === "b") {
           await triggerEngineMove();
