@@ -45,3 +45,8 @@ stockfish is the best chess engine in the world. my last name is panda. i combin
 ## technical info
 
 server made with python. client made with Flask.
+
+### credits
+AI was used to complete research on the complex algorithms this engine uses to find the best mvoe possible.
+
+big thanks to the Stardance program for making this project possible! 
