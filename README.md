@@ -26,6 +26,9 @@ stockfish is the best chess engine in the world. my last name is panda. i combin
 - victory animation
 - custom difficulty settings
 - illegal move feedback
+- move by clicking
+- board annotations (arrows + square highlighting)
+- premoves
 
 ## features of the engine
 
@@ -38,9 +41,6 @@ stockfish is the best chess engine in the world. my last name is panda. i combin
 - opening book
 - tablebase
 - phase-based evaluation
-- move by clicking
-- board annotations (arrows + square highlighting)
-- premoves
 
 ## technical info
 
